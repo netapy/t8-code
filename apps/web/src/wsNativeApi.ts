@@ -15,28 +15,26 @@ import { Cause, Schema } from "effect";
 import { showContextMenuFallback } from "./contextMenuFallback";
 import { WsTransport } from "./wsTransport";
 
+export interface RateLimitWindow {
+  readonly usedPercent?: number;
+  readonly windowDurationMins?: number;
+  readonly resetsAt?: number;
+}
+
 export interface RateLimitsPayload {
   readonly rateLimits?: {
     readonly limitId?: string;
     readonly limitName?: string | null;
-    readonly primary?: {
-      readonly usedPercent?: number;
-      readonly windowDurationMins?: number;
-      readonly resetsAt?: number;
-    } | null;
-    readonly secondary?: unknown;
+    readonly primary?: RateLimitWindow | null;
+    readonly secondary?: RateLimitWindow | null;
   };
   readonly rateLimitsByLimitId?: Record<
     string,
     {
       readonly limitId?: string;
       readonly limitName?: string | null;
-      readonly primary?: {
-        readonly usedPercent?: number;
-        readonly windowDurationMins?: number;
-        readonly resetsAt?: number;
-      } | null;
-      readonly secondary?: unknown;
+      readonly primary?: RateLimitWindow | null;
+      readonly secondary?: RateLimitWindow | null;
     }
   >;
 }
