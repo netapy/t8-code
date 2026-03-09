@@ -23,6 +23,7 @@ import {
 } from "../proposedPlan";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "./ui/menu";
 import { readNativeApi } from "~/nativeApi";
+import { copyTextToClipboard } from "~/lib/utils";
 import { toastManager } from "./ui/toast";
 
 function stepStatusIcon(status: string): React.ReactNode {
@@ -71,9 +72,18 @@ const PlanSidebar = memo(function PlanSidebar({
 
   const handleCopyPlan = useCallback(() => {
     if (!planMarkdown) return;
-    void navigator.clipboard.writeText(planMarkdown);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    void copyTextToClipboard(planMarkdown)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch((error) => {
+        toastManager.add({
+          type: "error",
+          title: "Could not copy plan",
+          description: error instanceof Error ? error.message : "Clipboard API unavailable.",
+        });
+      });
   }, [planMarkdown]);
 
   const handleDownload = useCallback(() => {

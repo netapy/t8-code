@@ -201,7 +201,7 @@ import {
 } from "~/projectScripts";
 import { Toggle } from "./ui/toggle";
 import { SidebarTrigger } from "./ui/sidebar";
-import { createUuid, newCommandId, newMessageId, newThreadId } from "~/lib/utils";
+import { copyTextToClipboard, createUuid, newCommandId, newMessageId, newThreadId } from "~/lib/utils";
 import { readNativeApi } from "~/nativeApi";
 import {
   getAppModelOptions,
@@ -4581,9 +4581,18 @@ const MessageCopyButton = memo(function MessageCopyButton({ text }: { text: stri
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(() => {
-    void navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    void copyTextToClipboard(text)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch((error) => {
+        toastManager.add({
+          type: "error",
+          title: "Could not copy message",
+          description: error instanceof Error ? error.message : "Clipboard API unavailable.",
+        });
+      });
   }, [text]);
 
   return (

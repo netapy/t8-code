@@ -57,3 +57,34 @@ export const newProjectId = (): ProjectId => ProjectId.makeUnsafe(createUuid());
 export const newThreadId = (): ThreadId => ThreadId.makeUnsafe(createUuid());
 
 export const newMessageId = (): MessageId => MessageId.makeUnsafe(createUuid());
+
+export async function copyTextToClipboard(text: string): Promise<void> {
+  if (typeof globalThis.navigator?.clipboard?.writeText === "function") {
+    await globalThis.navigator.clipboard.writeText(text);
+    return;
+  }
+
+  if (typeof globalThis.document === "undefined") {
+    throw new Error("Clipboard API unavailable.");
+  }
+
+  const textarea = globalThis.document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.top = "-9999px";
+  textarea.style.left = "-9999px";
+  textarea.style.opacity = "0";
+  globalThis.document.body.append(textarea);
+  textarea.focus();
+  textarea.select();
+  textarea.setSelectionRange(0, textarea.value.length);
+
+  try {
+    if (!globalThis.document.execCommand("copy")) {
+      throw new Error("Clipboard API unavailable.");
+    }
+  } finally {
+    textarea.remove();
+  }
+}
