@@ -504,6 +504,7 @@ export default function Sidebar() {
       }
 
       const projectId = newProjectId();
+      const threadId = newThreadId();
       const createdAt = new Date().toISOString();
       const title = cwd.split(/[/\\]/).findLast(isNonEmptyString) ?? cwd;
       try {
@@ -516,7 +517,23 @@ export default function Sidebar() {
           defaultModel: DEFAULT_MODEL_BY_PROVIDER.codex,
           createdAt,
         });
-        await handleNewThread(projectId).catch(() => undefined);
+        await api.orchestration.dispatchCommand({
+          type: "thread.create",
+          commandId: newCommandId(),
+          threadId,
+          projectId,
+          title: "New thread",
+          model: DEFAULT_MODEL_BY_PROVIDER.codex,
+          runtimeMode: DEFAULT_RUNTIME_MODE,
+          interactionMode: "default",
+          branch: null,
+          worktreePath: null,
+          createdAt,
+        });
+        await navigate({
+          to: "/$threadId",
+          params: { threadId },
+        });
       } catch (error) {
         setIsAddingProject(false);
         setAddProjectError(
@@ -526,7 +543,7 @@ export default function Sidebar() {
       }
       finishAddingProject();
     },
-    [focusMostRecentThreadForProject, handleNewThread, isAddingProject, projects],
+    [focusMostRecentThreadForProject, isAddingProject, navigate, projects],
   );
 
   const handleAddProject = () => {
