@@ -1,6 +1,8 @@
-# T3 Code
+# T8 Code
 
-T3 Code is a minimal web GUI for coding agents. Currently Codex-first, with Claude Code support coming soon.
+T8 Code is a minimal web GUI for coding agents. This fork is based on the excellent [T3 Code](https://github.com/pingdotgg/t3code) by `pingdotgg`.
+
+The goal of this fork is to keep the original project’s strengths while making targeted changes for my own workflow.
 
 ## How to use
 
