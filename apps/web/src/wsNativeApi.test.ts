@@ -349,6 +349,23 @@ describe("wsNativeApi", () => {
     });
   });
 
+  it("forwards Codex conversation imports to the websocket server method", async () => {
+    requestMock.mockResolvedValue({
+      projectId: "project-1",
+      createdThreadCount: 1,
+      refreshedThreadCount: 0,
+      skippedThreadCount: 0,
+      skipped: [],
+      latestImportedThreadId: "thread-1",
+    });
+    const { createWsNativeApi } = await import("./wsNativeApi");
+
+    const api = createWsNativeApi();
+    await api.server.importCodexConversations();
+
+    expect(requestMock).toHaveBeenCalledWith(WS_METHODS.serverImportCodexConversations, {});
+  });
+
   it("forwards full-thread diff requests to the orchestration websocket method", async () => {
     requestMock.mockResolvedValue({ diff: "patch" });
     const { createWsNativeApi } = await import("./wsNativeApi");

@@ -22,6 +22,10 @@ import type {
 } from "./project";
 import type { ServerConfig } from "./server";
 import type {
+  ServerImportCodexConversationsInput,
+  ServerImportCodexConversationsResult,
+} from "./server";
+import type {
   TerminalClearInput,
   TerminalCloseInput,
   TerminalEvent,
@@ -137,6 +141,9 @@ export interface NativeApi {
   server: {
     getConfig: () => Promise<ServerConfig>;
     upsertKeybinding: (input: ServerUpsertKeybindingInput) => Promise<ServerUpsertKeybindingResult>;
+    importCodexConversations: (
+      input?: ServerImportCodexConversationsInput,
+    ) => Promise<ServerImportCodexConversationsResult>;
   };
   orchestration: {
     getSnapshot: () => Promise<OrchestrationReadModel>;

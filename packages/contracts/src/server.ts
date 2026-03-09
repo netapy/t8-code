@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import { IsoDateTime, TrimmedNonEmptyString } from "./baseSchemas";
+import { IsoDateTime, ProjectId, ThreadId, TrimmedNonEmptyString } from "./baseSchemas";
 import { KeybindingRule, ResolvedKeybindingsConfig } from "./keybindings";
 import { EditorId } from "./editor";
 import { ProviderKind } from "./orchestration";
@@ -63,6 +63,39 @@ export const ServerUpsertKeybindingResult = Schema.Struct({
   issues: ServerConfigIssues,
 });
 export type ServerUpsertKeybindingResult = typeof ServerUpsertKeybindingResult.Type;
+
+export const ServerImportCodexConversationsInput = Schema.Struct({});
+export type ServerImportCodexConversationsInput = typeof ServerImportCodexConversationsInput.Type;
+
+export const ServerImportCodexConversationsSkippedReason = Schema.Literals([
+  "missing-codex-home",
+  "missing-state-db",
+  "missing-rollout",
+  "parse-error",
+  "diverged",
+  "source-rewritten",
+]);
+export type ServerImportCodexConversationsSkippedReason =
+  typeof ServerImportCodexConversationsSkippedReason.Type;
+
+export const ServerImportCodexConversationsSkippedEntry = Schema.Struct({
+  sourceThreadId: TrimmedNonEmptyString,
+  title: TrimmedNonEmptyString,
+  reason: ServerImportCodexConversationsSkippedReason,
+});
+export type ServerImportCodexConversationsSkippedEntry =
+  typeof ServerImportCodexConversationsSkippedEntry.Type;
+
+export const ServerImportCodexConversationsResult = Schema.Struct({
+  projectId: ProjectId,
+  createdThreadCount: Schema.Number,
+  refreshedThreadCount: Schema.Number,
+  skippedThreadCount: Schema.Number,
+  skipped: Schema.Array(ServerImportCodexConversationsSkippedEntry),
+  latestImportedThreadId: Schema.optional(ThreadId),
+});
+export type ServerImportCodexConversationsResult =
+  typeof ServerImportCodexConversationsResult.Type;
 
 export const ServerConfigUpdatedPayload = Schema.Struct({
   issues: ServerConfigIssues,

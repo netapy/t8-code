@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
-import { type ProviderKind } from "@t3tools/contracts";
+import { type ProviderKind, type ServerImportCodexConversationsResult } from "@t3tools/contracts";
 import { getModelOptions, normalizeModelSlug } from "@t3tools/shared/model";
 import { ZapIcon } from "lucide-react";
 
@@ -20,6 +20,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Switch } from "../components/ui/switch";
+import { toastManager } from "../components/ui/toast";
 import { SidebarInset } from "~/components/ui/sidebar";
 
 const THEME_OPTIONS = [
@@ -87,11 +88,16 @@ function patchCustomModels(provider: ProviderKind, models: string[]) {
 }
 
 function SettingsRouteView() {
+  const navigate = useNavigate();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { settings, defaults, updateSettings } = useAppSettings();
   const serverConfigQuery = useQuery(serverConfigQueryOptions());
   const [isOpeningKeybindings, setIsOpeningKeybindings] = useState(false);
   const [openKeybindingsError, setOpenKeybindingsError] = useState<string | null>(null);
+  const [isImportingCodexConversations, setIsImportingCodexConversations] = useState(false);
+  const [codexImportError, setCodexImportError] = useState<string | null>(null);
+  const [codexImportSummary, setCodexImportSummary] =
+    useState<ServerImportCodexConversationsResult | null>(null);
   const [customModelInputByProvider, setCustomModelInputByProvider] = useState<
     Record<ProviderKind, string>
   >({
@@ -178,6 +184,53 @@ function SettingsRouteView() {
     },
     [settings, updateSettings],
   );
+
+  const runCodexConversationImport = useCallback(() => {
+    setCodexImportError(null);
+    setIsImportingCodexConversations(true);
+    const api = ensureNativeApi();
+    void api.server
+      .importCodexConversations()
+      .then(async (result) => {
+        setCodexImportSummary(result);
+        const countsLabel = `${result.createdThreadCount} new, ${result.refreshedThreadCount} refreshed, ${result.skippedThreadCount} skipped`;
+        if (
+          result.createdThreadCount === 0 &&
+          result.refreshedThreadCount === 0 &&
+          result.skippedThreadCount === 0
+        ) {
+          toastManager.add({
+            type: "info",
+            title: "No Codex conversations found",
+            description: "Nothing matched this workspace cwd.",
+          });
+        } else {
+          toastManager.add({
+            type: "success",
+            title: "Codex conversations imported",
+            description: countsLabel,
+          });
+        }
+        if (result.latestImportedThreadId) {
+          await navigate({
+            to: "/$threadId",
+            params: { threadId: result.latestImportedThreadId },
+          });
+        }
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : "Unable to import Codex conversations.";
+        setCodexImportError(message);
+        toastManager.add({
+          type: "error",
+          title: "Codex import failed",
+          description: message,
+        });
+      })
+      .finally(() => {
+        setIsImportingCodexConversations(false);
+      });
+  }, [navigate]);
 
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none bg-background text-foreground isolate">
@@ -297,6 +350,70 @@ function SettingsRouteView() {
                     Reset codex overrides
                   </Button>
                 </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-border bg-card p-5">
+              <div className="mb-4">
+                <h2 className="text-sm font-medium text-foreground">Codex Conversation Import</h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Import non-archived Codex conversations whose cwd exactly matches this workspace.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-lg border border-border bg-background px-3 py-3 text-xs">
+                  <p className="font-medium text-foreground">Current workspace</p>
+                  <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
+                    {serverConfigQuery.data?.cwd ?? "Resolving workspace cwd..."}
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-border bg-background px-3 py-3 text-xs">
+                  <p className="font-medium text-foreground">Codex source</p>
+                  <p className="mt-1 text-muted-foreground">
+                    Reads server-side conversations from <code>CODEX_HOME</code> or{" "}
+                    <code>~/.codex</code>.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    Imported threads show up in the existing sidebar like native T8 threads.
+                  </p>
+                  <Button
+                    type="button"
+                    disabled={isImportingCodexConversations}
+                    onClick={runCodexConversationImport}
+                  >
+                    {isImportingCodexConversations ? "Importing..." : "Import from Codex"}
+                  </Button>
+                </div>
+
+                {codexImportSummary ? (
+                  <div className="rounded-lg border border-border bg-background px-3 py-3 text-xs text-muted-foreground">
+                    <p className="font-medium text-foreground">Last import</p>
+                    <p className="mt-1">
+                      {codexImportSummary.createdThreadCount} new,{" "}
+                      {codexImportSummary.refreshedThreadCount} refreshed,{" "}
+                      {codexImportSummary.skippedThreadCount} skipped.
+                    </p>
+                    {codexImportSummary.skipped.length > 0 ? (
+                      <p className="mt-2">
+                        Skip reasons:{" "}
+                        {codexImportSummary.skipped
+                          .slice(0, 3)
+                          .map((entry) => entry.reason)
+                          .join(", ")}
+                        {codexImportSummary.skipped.length > 3 ? ", ..." : ""}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {codexImportError ? (
+                  <p className="text-xs text-destructive">{codexImportError}</p>
+                ) : null}
               </div>
             </section>
 

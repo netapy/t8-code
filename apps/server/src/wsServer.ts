@@ -73,6 +73,7 @@ import {
 import { parseBase64DataUrl } from "./imageMime.ts";
 import { AnalyticsService } from "./telemetry/Services/AnalyticsService.ts";
 import { expandHomePath } from "./os-jank.ts";
+import { importCodexConversations } from "./codexConversationImport.ts";
 
 /**
  * ServerShape - Service API for server lifecycle control.
@@ -892,6 +893,19 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
         const keybindingsConfig = yield* keybindingsManager.upsertKeybindingRule(body);
         return { keybindings: keybindingsConfig, issues: [] };
       }
+
+      case WS_METHODS.serverImportCodexConversations:
+        return yield* Effect.tryPromise({
+          try: () =>
+            importCodexConversations({
+              cwd,
+              orchestrationEngine,
+            }),
+          catch: (cause) =>
+            new RouteRequestError({
+              message: `Failed to import Codex conversations: ${String(cause)}`,
+            }),
+        });
 
       default: {
         const _exhaustiveCheck: never = request.body;

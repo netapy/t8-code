@@ -31,6 +31,7 @@ import {
 import { KeybindingRule } from "./keybindings";
 import { ProjectSearchEntriesInput, ProjectWriteFileInput } from "./project";
 import { OpenInEditorInput } from "./editor";
+import { ServerImportCodexConversationsInput as ServerImportCodexConversationsRequest } from "./server";
 
 // ── WebSocket RPC Method Names ───────────────────────────────────────
 
@@ -67,6 +68,7 @@ export const WS_METHODS = {
   // Server meta
   serverGetConfig: "server.getConfig",
   serverUpsertKeybinding: "server.upsertKeybinding",
+  serverImportCodexConversations: "server.importCodexConversations",
 } as const;
 
 // ── Push Event Channels ──────────────────────────────────────────────
@@ -129,6 +131,10 @@ const WebSocketRequestBody = Schema.Union([
   // Server meta
   tagRequestBody(WS_METHODS.serverGetConfig, Schema.Struct({})),
   tagRequestBody(WS_METHODS.serverUpsertKeybinding, KeybindingRule),
+  tagRequestBody(
+    WS_METHODS.serverImportCodexConversations,
+    ServerImportCodexConversationsRequest,
+  ),
 ]);
 
 export const WebSocketRequest = Schema.Struct({
