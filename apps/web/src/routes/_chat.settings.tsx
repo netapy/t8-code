@@ -357,7 +357,7 @@ function SettingsRouteView() {
               <div className="mb-4">
                 <h2 className="text-sm font-medium text-foreground">Codex Conversation Import</h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Import non-archived Codex conversations whose cwd exactly matches this workspace.
+                  Import non-archived Codex conversations for all non-deleted T8 workspace roots.
                 </p>
               </div>
 

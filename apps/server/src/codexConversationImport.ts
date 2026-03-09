@@ -19,9 +19,10 @@ import {
   type ServerImportCodexConversationsSkippedEntry,
   type ServerImportCodexConversationsSkippedReason,
 } from "@t3tools/contracts";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { OrchestrationEngineShape } from "./orchestration/Services/OrchestrationEngine.ts";
+import { OrchestrationCommandInvariantError } from "./orchestration/Errors.ts";
 
 interface ImportCodexConversationsInput {
   readonly cwd: string;
@@ -30,6 +31,7 @@ interface ImportCodexConversationsInput {
 
 interface CodexStateRow {
   readonly id: string;
+  readonly cwd: string;
   readonly rolloutPath: string;
   readonly createdAtSeconds: number;
   readonly updatedAtSeconds: number;
@@ -177,29 +179,36 @@ async function readRolloutMessages(rolloutPath: string): Promise<ReadonlyArray<C
   return messages;
 }
 
-function readCodexThreadsForCwd(input: {
+function readCodexThreadsForCwds(input: {
   readonly codexHome: string;
-  readonly cwd: string;
+  readonly cwds: ReadonlyArray<string>;
 }): ReadonlyArray<CodexStateRow> {
+  if (input.cwds.length === 0) {
+    return [];
+  }
+
   const stateDbPath = path.join(input.codexHome, "state_5.sqlite");
   const db = new DatabaseSync(stateDbPath, { readOnly: true });
   try {
+    const placeholders = input.cwds.map(() => "?").join(", ");
     const statement = db.prepare(`
       SELECT
         id,
+        cwd,
         rollout_path AS rolloutPath,
         created_at AS createdAtSeconds,
         updated_at AS updatedAtSeconds,
         title,
         first_user_message AS firstUserMessage
       FROM threads
-      WHERE cwd = ? AND archived = 0
+      WHERE cwd IN (${placeholders}) AND archived = 0
       ORDER BY updated_at DESC, id DESC
     `);
-    const rows = statement.all(input.cwd) as ReadonlyArray<Record<string, unknown>>;
+    const rows = statement.all(...input.cwds) as ReadonlyArray<Record<string, unknown>>;
     return rows.flatMap((row) => {
       if (
         typeof row.id !== "string" ||
+        typeof row.cwd !== "string" ||
         typeof row.rolloutPath !== "string" ||
         typeof row.createdAtSeconds !== "number" ||
         typeof row.updatedAtSeconds !== "number" ||
@@ -211,6 +220,7 @@ function readCodexThreadsForCwd(input: {
       return [
         {
           id: row.id,
+          cwd: row.cwd,
           rolloutPath: row.rolloutPath,
           createdAtSeconds: row.createdAtSeconds,
           updatedAtSeconds: row.updatedAtSeconds,
@@ -231,8 +241,16 @@ function findProjectForCwd(readModel: OrchestrationReadModel, cwd: string): Orch
   );
 }
 
+function findAnyThreadById(
+  readModel: OrchestrationReadModel,
+  threadId: ThreadId,
+): OrchestrationThread | null {
+  return readModel.threads.find((thread) => thread.id === threadId) ?? null;
+}
+
 function findThreadById(readModel: OrchestrationReadModel, threadId: ThreadId): OrchestrationThread | null {
-  return readModel.threads.find((thread) => thread.id === threadId && thread.deletedAt === null) ?? null;
+  const thread = findAnyThreadById(readModel, threadId);
+  return thread?.deletedAt === null ? thread : null;
 }
 
 async function loadCodexImportedThread(row: CodexStateRow, codexHome: string): Promise<CodexImportedThread> {
@@ -285,10 +303,18 @@ async function ensureProject(input: {
   return project;
 }
 
+function isThreadAlreadyExistsError(error: unknown, threadId: ThreadId): boolean {
+  return (
+    Schema.is(OrchestrationCommandInvariantError)(error) &&
+    error.commandType === "thread.create" &&
+    error.detail.includes(`Thread '${threadId}' already exists`)
+  );
+}
+
 export async function importCodexConversations(
   input: ImportCodexConversationsInput,
 ): Promise<ServerImportCodexConversationsResult> {
-  const project = await ensureProject({
+  const bootstrapProject = await ensureProject({
     cwd: input.cwd,
     orchestrationEngine: input.orchestrationEngine,
   });
@@ -300,7 +326,7 @@ export async function importCodexConversations(
 
   if (!existsSync(codexHome)) {
     return {
-      projectId: project.id,
+      projectId: bootstrapProject.id,
       createdThreadCount,
       refreshedThreadCount,
       skippedThreadCount: 1,
@@ -313,7 +339,7 @@ export async function importCodexConversations(
   const stateDbPath = path.join(codexHome, "state_5.sqlite");
   if (!existsSync(stateDbPath)) {
     return {
-      projectId: project.id,
+      projectId: bootstrapProject.id,
       createdThreadCount,
       refreshedThreadCount,
       skippedThreadCount: 1,
@@ -321,10 +347,20 @@ export async function importCodexConversations(
     };
   }
 
-  const sourceRows = readCodexThreadsForCwd({ codexHome, cwd: input.cwd });
   let readModel = await Effect.runPromise(input.orchestrationEngine.getReadModel());
+  const targetProjects = readModel.projects.filter((project) => project.deletedAt === null);
+  const targetCwds = Array.from(
+    new Set(targetProjects.map((project) => project.workspaceRoot).filter((cwd) => cwd.length > 0)),
+  );
+  const sourceRows = readCodexThreadsForCwds({ codexHome, cwds: targetCwds });
 
   for (const row of sourceRows) {
+    const project = findProjectForCwd(readModel, row.cwd);
+    if (!project) {
+      skipped.push(makeSkippedEntry(row.id, row.title, "diverged"));
+      continue;
+    }
+
     let sourceThread: CodexImportedThread;
     const normalizedTitle = normalizeImportedTitle({
       title: row.title,
@@ -353,7 +389,13 @@ export async function importCodexConversations(
 
     const threadId = importedThreadIdForSource(sourceThread.sourceThreadId);
     const messagePrefix = importedMessagePrefixForSource(sourceThread.sourceThreadId);
+    const existingThreadRecord = findAnyThreadById(readModel, threadId);
     const existingThread = findThreadById(readModel, threadId);
+
+    if (existingThreadRecord && existingThreadRecord.deletedAt !== null) {
+      skipped.push(makeSkippedEntry(sourceThread.sourceThreadId, sourceThread.title, "diverged"));
+      continue;
+    }
 
     if (
       existingThread &&
@@ -370,25 +412,50 @@ export async function importCodexConversations(
       continue;
     }
 
-    if (!existingThread) {
-      await Effect.runPromise(
-        input.orchestrationEngine.dispatch({
-          type: "thread.create",
-          commandId: newServerCommandId(),
-          threadId,
-          projectId: project.id,
-          title: sourceThread.title,
-          model: project.defaultModel ?? DEFAULT_MODEL_BY_PROVIDER.codex,
-          runtimeMode: DEFAULT_RUNTIME_MODE,
-          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
-          branch: null,
-          worktreePath: null,
-          createdAt: sourceThread.createdAt,
-        }),
-      );
-      createdThreadCount += 1;
+    let thread = existingThread;
+
+    if (!thread) {
+      let createdThread = false;
+      try {
+        await Effect.runPromise(
+          input.orchestrationEngine.dispatch({
+            type: "thread.create",
+            commandId: newServerCommandId(),
+            threadId,
+            projectId: project.id,
+            title: sourceThread.title,
+            model: project.defaultModel ?? DEFAULT_MODEL_BY_PROVIDER.codex,
+            runtimeMode: DEFAULT_RUNTIME_MODE,
+            interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+            branch: null,
+            worktreePath: null,
+            createdAt: sourceThread.createdAt,
+          }),
+        );
+        createdThread = true;
+      } catch (error) {
+        if (!isThreadAlreadyExistsError(error, threadId)) {
+          throw error;
+        }
+      }
+
+      readModel = await Effect.runPromise(input.orchestrationEngine.getReadModel());
+      thread = findThreadById(readModel, threadId);
+      const threadRecord = findAnyThreadById(readModel, threadId);
+      if (threadRecord?.deletedAt !== null) {
+        skipped.push(makeSkippedEntry(sourceThread.sourceThreadId, sourceThread.title, "diverged"));
+        continue;
+      }
+      if (!thread) {
+        throw new Error(`Imported thread '${threadId}' exists but could not be loaded.`);
+      }
+      if (createdThread) {
+        createdThreadCount += 1;
+      } else {
+        refreshedThreadCount += 1;
+      }
     } else {
-      if (existingThread.title !== sourceThread.title) {
+      if (thread.title !== sourceThread.title) {
         await Effect.runPromise(
           input.orchestrationEngine.dispatch({
             type: "thread.meta.update",
@@ -425,7 +492,7 @@ export async function importCodexConversations(
   }
 
   return {
-    projectId: project.id,
+    projectId: bootstrapProject.id,
     createdThreadCount,
     refreshedThreadCount,
     skippedThreadCount: skipped.length,

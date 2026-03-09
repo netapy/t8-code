@@ -4,7 +4,13 @@ import fs from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 
 import { Effect, Stream, type Effect as EffectType } from "effect";
-import type { OrchestrationCommand, OrchestrationReadModel } from "@t3tools/contracts";
+import {
+  CommandId,
+  ProjectId,
+  ThreadId,
+  type OrchestrationCommand,
+  type OrchestrationReadModel,
+} from "@t3tools/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { importCodexConversations } from "./codexConversationImport";
@@ -146,6 +152,13 @@ class FakeOrchestrationEngine implements OrchestrationEngineShape {
       this.sequence += 1;
       return { sequence: this.sequence };
     });
+
+  seedThread(thread: OrchestrationReadModel["threads"][number]): void {
+    this.readModel = {
+      ...this.readModel,
+      threads: [...this.readModel.threads, thread],
+    };
+  }
 }
 
 async function createCodexHomeFixture(): Promise<{
@@ -234,6 +247,16 @@ async function createCodexHomeFixture(): Promise<{
     "/workspace/other",
     0,
   );
+  insertThread.run(
+    "codex-thread-back-office",
+    matchingRolloutPath,
+    1_741_424_000,
+    1_741_424_060,
+    "Back-office import",
+    "Import this conversation",
+    "/workspace/back-office",
+    0,
+  );
   db.close();
 
   return {
@@ -270,6 +293,130 @@ describe("importCodexConversations", () => {
       expect(readModel.threads[0]?.messages.map((message) => message.text)).toEqual([
         "Import this conversation",
         "Imported answer",
+      ]);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it("re-imports the same Codex conversation without creating duplicates", async () => {
+    const fixture = await createCodexHomeFixture();
+    process.env.CODEX_HOME = fixture.codexHome;
+    const orchestrationEngine = new FakeOrchestrationEngine();
+
+    try {
+      const firstResult = await importCodexConversations({
+        cwd: "/workspace/repo",
+        orchestrationEngine,
+      });
+      const secondResult = await importCodexConversations({
+        cwd: "/workspace/repo",
+        orchestrationEngine,
+      });
+      const readModel = await Effect.runPromise(orchestrationEngine.getReadModel());
+
+      expect(firstResult.createdThreadCount).toBe(1);
+      expect(secondResult.createdThreadCount).toBe(0);
+      expect(secondResult.refreshedThreadCount).toBe(1);
+      expect(readModel.threads).toHaveLength(1);
+      expect(readModel.threads[0]?.messages).toHaveLength(2);
+      expect(readModel.threads[0]?.messages.map((message) => message.text)).toEqual([
+        "Import this conversation",
+        "Imported answer",
+      ]);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it("skips an imported thread that was deleted locally", async () => {
+    const fixture = await createCodexHomeFixture();
+    process.env.CODEX_HOME = fixture.codexHome;
+    const orchestrationEngine = new FakeOrchestrationEngine();
+
+    orchestrationEngine.seedThread({
+      id: ThreadId.makeUnsafe("codex-import:thread:codex-thread-match"),
+      projectId: ProjectId.makeUnsafe("project-1"),
+      title: "Imported thread",
+      model: "gpt-5-codex",
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      branch: null,
+      worktreePath: null,
+      latestTurn: null,
+      createdAt: FIXED_NOW,
+      updatedAt: FIXED_NOW,
+      deletedAt: FIXED_NOW,
+      messages: [],
+      proposedPlans: [],
+      activities: [],
+      checkpoints: [],
+      session: null,
+    });
+
+    try {
+      const result = await importCodexConversations({
+        cwd: "/workspace/repo",
+        orchestrationEngine,
+      });
+
+      expect(result.createdThreadCount).toBe(0);
+      expect(result.refreshedThreadCount).toBe(0);
+      expect(result.skippedThreadCount).toBe(1);
+      expect(result.skipped[0]?.reason).toBe("diverged");
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it("imports Codex conversations for every non-deleted T8 project root", async () => {
+    const fixture = await createCodexHomeFixture();
+    process.env.CODEX_HOME = fixture.codexHome;
+    const orchestrationEngine = new FakeOrchestrationEngine();
+
+    await Effect.runPromise(
+      orchestrationEngine.dispatch({
+        type: "project.create",
+        commandId: CommandId.makeUnsafe("test-project-create"),
+        projectId: ProjectId.makeUnsafe("project-back-office"),
+        title: "back-office",
+        workspaceRoot: "/workspace/back-office",
+        defaultModel: "gpt-5-codex",
+        createdAt: FIXED_NOW,
+      }),
+    );
+
+    try {
+      const result = await importCodexConversations({
+        cwd: "/workspace/repo",
+        orchestrationEngine,
+      });
+      const readModel = await Effect.runPromise(orchestrationEngine.getReadModel());
+
+      expect(result.createdThreadCount).toBe(2);
+      expect(result.refreshedThreadCount).toBe(0);
+      expect(readModel.projects).toHaveLength(2);
+      expect(
+        readModel.threads
+          .slice()
+          .sort((left, right) => left.projectId.localeCompare(right.projectId))
+          .map((thread) => ({
+            id: thread.id,
+            projectId: thread.projectId,
+            title: thread.title,
+          })),
+      ).toEqual([
+        {
+          id: "codex-import:thread:codex-thread-match",
+          projectId: readModel.projects.find((project) => project.workspaceRoot === "/workspace/repo")
+            ?.id,
+          title: "Imported thread",
+        },
+        {
+          id: "codex-import:thread:codex-thread-back-office",
+          projectId: "project-back-office",
+          title: "Back-office import",
+        },
       ]);
     } finally {
       await fixture.cleanup();
