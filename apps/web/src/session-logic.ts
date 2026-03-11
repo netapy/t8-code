@@ -406,7 +406,7 @@ export function findLatestProposedPlan(
 
 export function deriveWorkLogEntries(
   activities: ReadonlyArray<OrchestrationThreadActivity>,
-  latestTurnId: TurnId | undefined,
+  turnId?: TurnId,
 ): WorkLogEntry[] {
   const ordered = [...activities].toSorted(compareActivitiesByOrder);
   return ordered
@@ -416,11 +416,11 @@ export function deriveWorkLogEntries(
           ? (activity.payload as Record<string, unknown>)
           : null;
       const itemType = extractWorkLogItemType(payload);
-      if (!latestTurnId) {
+      if (!turnId) {
         return true;
       }
       return (
-        activity.turnId === latestTurnId ||
+        activity.turnId === turnId ||
         itemType === "context_compaction" ||
         activity.kind === "thread.compacted"
       );
