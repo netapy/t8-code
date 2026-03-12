@@ -15,6 +15,7 @@ import {
 
 const ProjectionThreadDbRowSchema = ProjectionThread.mapFields(
   Struct.assign({
+    pinned: Schema.Number,
     contextUsage: Schema.fromJsonString(Schema.NullOr(OrchestrationThreadContextUsage)),
     queuedFollowUps: Schema.fromJsonString(Schema.Array(OrchestrationQueuedFollowUp)),
   }),
@@ -31,6 +32,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           thread_id,
           project_id,
           title,
+          pinned,
           model,
           runtime_mode,
           interaction_mode,
@@ -47,6 +49,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           ${row.threadId},
           ${row.projectId},
           ${row.title},
+          ${row.pinned ? 1 : 0},
           ${row.model},
           ${row.runtimeMode},
           ${row.interactionMode},
@@ -63,6 +66,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
         DO UPDATE SET
           project_id = excluded.project_id,
           title = excluded.title,
+          pinned = excluded.pinned,
           model = excluded.model,
           runtime_mode = excluded.runtime_mode,
           interaction_mode = excluded.interaction_mode,
@@ -86,6 +90,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           thread_id AS "threadId",
           project_id AS "projectId",
           title,
+          pinned,
           model,
           runtime_mode AS "runtimeMode",
           interaction_mode AS "interactionMode",
@@ -111,6 +116,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           thread_id AS "threadId",
           project_id AS "projectId",
           title,
+          pinned,
           model,
           runtime_mode AS "runtimeMode",
           interaction_mode AS "interactionMode",
