@@ -428,6 +428,7 @@ const makeOrchestrationProjectionPipeline = Effect.gen(function* () {
             branch: event.payload.branch,
             worktreePath: event.payload.worktreePath,
             latestTurnId: null,
+            queuedFollowUps: [],
             createdAt: event.payload.createdAt,
             updatedAt: event.payload.updatedAt,
             deletedAt: null,
@@ -502,6 +503,8 @@ const makeOrchestrationProjectionPipeline = Effect.gen(function* () {
 
         case "thread.message-sent":
         case "thread.proposed-plan-upserted":
+        case "thread.follow-up-queued":
+        case "thread.follow-up-removed":
         case "thread.activity-appended": {
           const existingRow = yield* projectionThreadRepository.getById({
             threadId: event.payload.threadId,
@@ -509,8 +512,26 @@ const makeOrchestrationProjectionPipeline = Effect.gen(function* () {
           if (Option.isNone(existingRow)) {
             return;
           }
+          const nextQueuedFollowUps =
+            event.type === "thread.follow-up-queued"
+              ? [
+                  ...existingRow.value.queuedFollowUps.filter(
+                    (entry) => entry.messageId !== event.payload.followUp.messageId,
+                  ),
+                  event.payload.followUp,
+                ].toSorted(
+                  (left, right) =>
+                    left.createdAt.localeCompare(right.createdAt) ||
+                    left.messageId.localeCompare(right.messageId),
+                )
+              : event.type === "thread.follow-up-removed"
+                ? existingRow.value.queuedFollowUps.filter(
+                    (entry) => entry.messageId !== event.payload.messageId,
+                  )
+                : existingRow.value.queuedFollowUps;
           yield* projectionThreadRepository.upsert({
             ...existingRow.value,
+            queuedFollowUps: nextQueuedFollowUps,
             updatedAt: event.occurredAt,
           });
           return;

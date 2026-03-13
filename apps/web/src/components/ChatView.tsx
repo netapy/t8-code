@@ -266,6 +266,7 @@ const EMPTY_PROJECT_ENTRIES: ProjectEntry[] = [];
 const EMPTY_AVAILABLE_EDITORS: EditorId[] = [];
 const EMPTY_PROVIDER_STATUSES: ServerProviderStatus[] = [];
 const EMPTY_PENDING_USER_INPUT_ANSWERS: Record<string, PendingUserInputDraftAnswer> = {};
+const EMPTY_QUEUED_FOLLOW_UPS: Thread["queuedFollowUps"] = [];
 const COMPOSER_PATH_QUERY_DEBOUNCE_MS = 120;
 const SCRIPT_TERMINAL_COLS = 120;
 const SCRIPT_TERMINAL_ROWS = 30;
@@ -353,6 +354,7 @@ function buildLocalDraftThread(
     turnDiffSummaries: [],
     activities: [],
     proposedPlans: [],
+    queuedFollowUps: [],
   };
 }
 
@@ -942,6 +944,13 @@ export default function ChatView({ threadId }: ChatViewProps) {
     activeProposedPlan !== null;
   const activePendingApproval = pendingApprovals[0] ?? null;
   const isComposerApprovalState = activePendingApproval !== null;
+  const activeQueuedFollowUps = activeThread?.queuedFollowUps ?? EMPTY_QUEUED_FOLLOW_UPS;
+  const canSteerActiveTurn =
+    phase === "running" &&
+    selectedProvider === "codex" &&
+    activeThread?.session?.provider === "codex" &&
+    !isComposerApprovalState &&
+    pendingUserInputs.length === 0;
   const hasComposerHeader =
     isComposerApprovalState ||
     pendingUserInputs.length > 0 ||
@@ -2478,6 +2487,17 @@ export default function ChatView({ threadId }: ChatViewProps) {
       setComposerTrigger(null);
       return;
     }
+    if (canSteerActiveTurn) {
+      if (composerImages.length > 0) {
+        setThreadError(activeThread.id, "Wait for the current turn to finish before sending images.");
+        return;
+      }
+      if (!trimmed) {
+        return;
+      }
+      await onSteer(trimmed);
+      return;
+    }
     if (!trimmed && composerImages.length === 0) return;
     if (!activeProject) return;
     const threadIdForSend = activeThread.id;
@@ -2887,7 +2907,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
     }: {
       text: string;
       interactionMode: "default" | "plan";
-    }) => {
+    }): Promise<boolean> => {
       const api = readNativeApi();
       if (
         !api ||
@@ -2897,12 +2917,12 @@ export default function ChatView({ threadId }: ChatViewProps) {
         isConnecting ||
         sendInFlightRef.current
       ) {
-        return;
+        return false;
       }
 
       const trimmed = text.trim();
       if (!trimmed) {
-        return;
+        return false;
       }
 
       const threadIdForSend = activeThread.id;
@@ -2969,6 +2989,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
           setPlanSidebarOpen(true);
         }
         sendInFlightRef.current = false;
+        return true;
       } catch (err) {
         setOptimisticUserMessages((existing) =>
           existing.filter((message) => message.id !== messageIdForSend),
@@ -2979,6 +3000,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
         );
         sendInFlightRef.current = false;
         resetSendPhase();
+        return false;
       }
     },
     [
@@ -2999,6 +3021,207 @@ export default function ChatView({ threadId }: ChatViewProps) {
       setThreadError,
       settings.enableAssistantStreaming,
     ],
+  );
+
+  const onSteer = useCallback(
+    async (text: string): Promise<boolean> => {
+      const api = readNativeApi();
+      if (
+        !api ||
+        !activeThread ||
+        !isServerThread ||
+        !canSteerActiveTurn ||
+        isSendBusy ||
+        isConnecting ||
+        sendInFlightRef.current
+      ) {
+        return false;
+      }
+
+      const trimmed = text.trim();
+      if (!trimmed) {
+        return false;
+      }
+
+      const threadIdForSend = activeThread.id;
+      const messageIdForSend = newMessageId();
+      const messageCreatedAt = new Date().toISOString();
+
+      sendInFlightRef.current = true;
+      beginSendPhase("sending-turn");
+      setThreadError(threadIdForSend, null);
+      setOptimisticUserMessages((existing) => [
+        ...existing,
+        {
+          id: messageIdForSend,
+          role: "user",
+          text: trimmed,
+          createdAt: messageCreatedAt,
+          streaming: false,
+        },
+      ]);
+      shouldAutoScrollRef.current = true;
+      forceStickToBottom();
+      promptRef.current = "";
+      clearComposerDraftContent(threadIdForSend);
+      setComposerHighlightedItemId(null);
+      setComposerCursor(0);
+      setComposerTrigger(null);
+
+      try {
+        await api.orchestration.dispatchCommand({
+          type: "thread.turn.steer",
+          commandId: newCommandId(),
+          threadId: threadIdForSend,
+          message: {
+            messageId: messageIdForSend,
+            role: "user",
+            text: trimmed,
+          },
+          createdAt: messageCreatedAt,
+        });
+        sendInFlightRef.current = false;
+        return true;
+      } catch (err) {
+        setOptimisticUserMessages((existing) =>
+          existing.filter((message) => message.id !== messageIdForSend),
+        );
+        promptRef.current = trimmed;
+        setPrompt(trimmed);
+        setComposerCursor(trimmed.length);
+        setComposerTrigger(detectComposerTrigger(trimmed, trimmed.length));
+        setThreadError(
+          threadIdForSend,
+          err instanceof Error ? err.message : "Failed to steer the running task.",
+        );
+        sendInFlightRef.current = false;
+        resetSendPhase();
+        return false;
+      }
+    },
+    [
+      activeThread,
+      beginSendPhase,
+      canSteerActiveTurn,
+      clearComposerDraftContent,
+      forceStickToBottom,
+      isConnecting,
+      isSendBusy,
+      isServerThread,
+      resetSendPhase,
+      setPrompt,
+      setThreadError,
+    ],
+  );
+
+  const onQueueNext = useCallback(async () => {
+    const api = readNativeApi();
+    if (!api || !activeThread || !isServerThread) {
+      return;
+    }
+    const trimmed = prompt.trim();
+    if (!trimmed) {
+      return;
+    }
+    if (composerImages.length > 0) {
+      setThreadError(activeThread.id, "Wait for the current turn to finish before sending images.");
+      return;
+    }
+    const createdAt = new Date().toISOString();
+    await api.orchestration
+      .dispatchCommand({
+        type: "thread.follow-up.queue",
+        commandId: newCommandId(),
+        threadId: activeThread.id,
+        followUp: {
+          messageId: newMessageId(),
+          text: trimmed,
+          provider: selectedProvider,
+          model: selectedModel || undefined,
+          serviceTier: selectedServiceTier,
+          ...(selectedModelOptionsForDispatch
+            ? { modelOptions: selectedModelOptionsForDispatch }
+            : {}),
+          ...(providerOptionsForDispatch
+            ? { providerOptions: providerOptionsForDispatch }
+            : {}),
+          assistantDeliveryMode: settings.enableAssistantStreaming ? "streaming" : "buffered",
+          runtimeMode,
+          interactionMode,
+          createdAt,
+        },
+        createdAt,
+      })
+      .then(() => {
+        promptRef.current = "";
+        clearComposerDraftContent(activeThread.id);
+        setComposerHighlightedItemId(null);
+        setComposerCursor(0);
+        setComposerTrigger(null);
+        setThreadError(activeThread.id, null);
+        scheduleComposerFocus();
+      })
+      .catch((err: unknown) => {
+        setThreadError(
+          activeThread.id,
+          err instanceof Error ? err.message : "Failed to queue follow-up.",
+        );
+      });
+  }, [
+    activeThread,
+    clearComposerDraftContent,
+    composerImages.length,
+    interactionMode,
+    isServerThread,
+    prompt,
+    providerOptionsForDispatch,
+    runtimeMode,
+    scheduleComposerFocus,
+    selectedModel,
+    selectedModelOptionsForDispatch,
+    selectedProvider,
+    selectedServiceTier,
+    setThreadError,
+    settings.enableAssistantStreaming,
+  ]);
+
+  const onRemoveQueuedFollowUp = useCallback(
+    async (messageId: MessageId) => {
+      const api = readNativeApi();
+      if (!api || !activeThread || !isServerThread) {
+        return;
+      }
+      await api.orchestration
+        .dispatchCommand({
+          type: "thread.follow-up.remove",
+          commandId: newCommandId(),
+          threadId: activeThread.id,
+          messageId,
+          createdAt: new Date().toISOString(),
+        })
+        .catch((err: unknown) => {
+          setThreadError(
+            activeThread.id,
+            err instanceof Error ? err.message : "Failed to remove queued follow-up.",
+          );
+        });
+    },
+    [activeThread, isServerThread, setThreadError],
+  );
+
+  const onEditQueuedFollowUp = useCallback(
+    async (messageId: MessageId, text: string) => {
+      if (!activeThread) {
+        return;
+      }
+      await onRemoveQueuedFollowUp(messageId).catch(() => undefined);
+      promptRef.current = text;
+      setPrompt(text);
+      setComposerCursor(text.length);
+      setComposerTrigger(detectComposerTrigger(text, text.length));
+      scheduleComposerFocus();
+    },
+    [activeThread, onRemoveQueuedFollowUp, scheduleComposerFocus, setPrompt],
   );
 
   const onImplementPlanInNewThread = useCallback(async () => {
@@ -3689,6 +3912,54 @@ export default function ChatView({ threadId }: ChatViewProps) {
               />
             </div>
 
+            {activeQueuedFollowUps.length > 0 &&
+            !isComposerApprovalState &&
+            pendingUserInputs.length === 0 ? (
+              <div className="mx-3 mb-2 rounded-xl border border-border/70 bg-muted/20 px-3 py-2 text-xs sm:mx-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[10px]">
+                    {activeQueuedFollowUps.length === 1
+                      ? "1 queued"
+                      : `${activeQueuedFollowUps.length} queued`}
+                  </Badge>
+                  <p className="min-w-0 text-muted-foreground/70">
+                    These prompts will run one after another.
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  {activeQueuedFollowUps.map((followUp, index) => (
+                    <div key={followUp.messageId} className="flex items-center gap-2">
+                      <span className="w-4 shrink-0 text-center text-[10px] text-muted-foreground/60">
+                        {index + 1}
+                      </span>
+                      <p className="min-w-0 flex-1 truncate text-muted-foreground/80">
+                        {followUp.text}
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 rounded-full px-2 text-xs"
+                        onClick={() => void onEditQueuedFollowUp(followUp.messageId, followUp.text)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon-xs"
+                        variant="ghost"
+                        className="shrink-0"
+                        onClick={() => void onRemoveQueuedFollowUp(followUp.messageId)}
+                        aria-label={`Remove queued follow-up ${index + 1}`}
+                      >
+                        <XIcon />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             {/* Bottom toolbar */}
             {activePendingApproval ? (
               <div className="flex items-center justify-end gap-2 px-2.5 pb-2.5 sm:px-3 sm:pb-3">
@@ -3847,22 +4118,74 @@ export default function ChatView({ threadId }: ChatViewProps) {
                       </Button>
                     </div>
                   ) : phase === "running" ? (
-                    <button
-                      type="button"
-                      className="flex size-8 items-center justify-center rounded-full bg-rose-500/90 text-white transition-all duration-150 hover:bg-rose-500 hover:scale-105 sm:h-8 sm:w-8"
-                      onClick={() => void onInterrupt()}
-                      aria-label="Stop generation"
-                    >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 12 12"
-                        fill="currentColor"
-                        aria-hidden="true"
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="flex size-8 items-center justify-center rounded-full bg-rose-500/90 text-white transition-all duration-150 hover:bg-rose-500 hover:scale-105 sm:h-8 sm:w-8"
+                        onClick={() => void onInterrupt()}
+                        aria-label="Stop generation"
                       >
-                        <rect x="2" y="2" width="8" height="8" rx="1.5" />
-                      </svg>
-                    </button>
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 12 12"
+                          fill="currentColor"
+                          aria-hidden="true"
+                        >
+                          <rect x="2" y="2" width="8" height="8" rx="1.5" />
+                        </svg>
+                      </button>
+                      {canSteerActiveTurn ? (
+                        <div className="flex items-center">
+                          <Button
+                            type="submit"
+                            size="sm"
+                            className="h-9 rounded-l-full rounded-r-none px-4 sm:h-8"
+                            disabled={
+                              isSendBusy ||
+                              isConnecting ||
+                              composerImages.length > 0 ||
+                              prompt.trim().length === 0
+                            }
+                          >
+                            {isConnecting || isSendBusy ? "Sending..." : "Steer"}
+                          </Button>
+                          <Menu>
+                            <MenuTrigger
+                              render={
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  className="h-9 rounded-l-none rounded-r-full border-l-white/12 px-2 sm:h-8"
+                                  aria-label="Running turn actions"
+                                  disabled={
+                                    isSendBusy ||
+                                    isConnecting ||
+                                    composerImages.length > 0 ||
+                                    prompt.trim().length === 0
+                                  }
+                                />
+                              }
+                            >
+                              <ChevronDownIcon className="size-3.5" />
+                            </MenuTrigger>
+                            <MenuPopup align="end" side="top">
+                              <MenuItem
+                                disabled={
+                                  isSendBusy ||
+                                  isConnecting ||
+                                  composerImages.length > 0 ||
+                                  prompt.trim().length === 0
+                                }
+                                onClick={onQueueNext}
+                              >
+                                Queue next
+                              </MenuItem>
+                            </MenuPopup>
+                          </Menu>
+                        </div>
+                      ) : null}
+                    </div>
                   ) : pendingUserInputs.length === 0 ? (
                     showPlanFollowUpPrompt ? (
                       prompt.trim().length > 0 ? (

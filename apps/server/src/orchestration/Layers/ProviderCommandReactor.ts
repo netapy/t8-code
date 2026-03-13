@@ -32,10 +32,13 @@ type ProviderIntentEvent = Extract<
     type:
       | "thread.runtime-mode-set"
       | "thread.turn-start-requested"
+      | "thread.turn-steer-requested"
+      | "thread.follow-up-queued"
       | "thread.turn-interrupt-requested"
       | "thread.approval-response-requested"
       | "thread.user-input-response-requested"
-      | "thread.session-stop-requested";
+      | "thread.session-stop-requested"
+      | "thread.session-set";
   }
 >;
 
@@ -151,6 +154,7 @@ const make = Effect.gen(function* () {
     readonly threadId: ThreadId;
     readonly kind:
       | "provider.turn.start.failed"
+      | "provider.turn.steer.failed"
       | "provider.turn.interrupt.failed"
       | "provider.approval.respond.failed"
       | "provider.user-input.respond.failed"
@@ -511,6 +515,95 @@ const make = Effect.gen(function* () {
     yield* providerService.interruptTurn({ threadId: event.payload.threadId });
   });
 
+  const processTurnSteerRequested = Effect.fnUntraced(function* (
+    event: Extract<ProviderIntentEvent, { type: "thread.turn-steer-requested" }>,
+  ) {
+    const thread = yield* resolveThread(event.payload.threadId);
+    if (!thread) {
+      return;
+    }
+    if (!thread.session || thread.session.status !== "running" || thread.session.activeTurnId === null) {
+      return yield* appendProviderFailureActivity({
+        threadId: event.payload.threadId,
+        kind: "provider.turn.steer.failed",
+        summary: "Provider turn steer failed",
+        detail: "No active provider turn is running for this thread.",
+        turnId: event.payload.turnId,
+        createdAt: event.payload.createdAt,
+      });
+    }
+    if (thread.session.providerName !== "codex") {
+      return yield* appendProviderFailureActivity({
+        threadId: event.payload.threadId,
+        kind: "provider.turn.steer.failed",
+        summary: "Provider turn steer failed",
+        detail: `Provider '${thread.session.providerName ?? "unknown"}' does not support steering.`,
+        turnId: event.payload.turnId,
+        createdAt: event.payload.createdAt,
+      });
+    }
+    if (thread.session.activeTurnId !== event.payload.turnId) {
+      return yield* appendProviderFailureActivity({
+        threadId: event.payload.threadId,
+        kind: "provider.turn.steer.failed",
+        summary: "Provider turn steer failed",
+        detail: "The active turn changed before the steer request could be delivered.",
+        turnId: event.payload.turnId,
+        createdAt: event.payload.createdAt,
+      });
+    }
+    const message = thread.messages.find((entry) => entry.id === event.payload.messageId);
+    if (!message) {
+      return yield* appendProviderFailureActivity({
+        threadId: event.payload.threadId,
+        kind: "provider.turn.steer.failed",
+        summary: "Provider turn steer failed",
+        detail: `User message '${event.payload.messageId}' was not found for steer request.`,
+        turnId: event.payload.turnId,
+        createdAt: event.payload.createdAt,
+      });
+    }
+
+    yield* providerService.steerTurn({
+      threadId: event.payload.threadId,
+      turnId: event.payload.turnId,
+      input: message.text,
+    }).pipe(
+      Effect.catchCause((cause) =>
+        Effect.gen(function* () {
+          const error = Cause.squash(cause);
+          yield* appendProviderFailureActivity({
+            threadId: event.payload.threadId,
+            kind: "provider.turn.steer.failed",
+            summary: "Provider turn steer failed",
+            detail: toErrorMessage(error),
+            turnId: event.payload.turnId,
+            createdAt: event.payload.createdAt,
+          });
+        }),
+      ),
+    );
+  });
+
+  const maybeDispatchQueuedFollowUp = Effect.fnUntraced(function* (threadId: ThreadId) {
+    const thread = yield* resolveThread(threadId);
+    if (!thread || thread.queuedFollowUps.length === 0 || thread.session?.status !== "ready") {
+      return;
+    }
+    yield* orchestrationEngine
+      .dispatch({
+        type: "thread.follow-up.dispatch-next",
+        commandId: serverCommandId("dispatch-queued-follow-up"),
+        threadId,
+        createdAt: new Date().toISOString(),
+      })
+      .pipe(
+        Effect.catchTag("OrchestrationCommandInvariantError", (error) =>
+          error.commandType === "thread.follow-up.dispatch-next" ? Effect.void : Effect.fail(error),
+        ),
+      );
+  });
+
   const processApprovalResponseRequested = Effect.fnUntraced(function* (
     event: Extract<ProviderIntentEvent, { type: "thread.approval-response-requested" }>,
   ) {
@@ -647,6 +740,12 @@ const make = Effect.gen(function* () {
         case "thread.turn-start-requested":
           yield* processTurnStartRequested(event);
           return;
+        case "thread.turn-steer-requested":
+          yield* processTurnSteerRequested(event);
+          return;
+        case "thread.follow-up-queued":
+          yield* maybeDispatchQueuedFollowUp(event.payload.threadId);
+          return;
         case "thread.turn-interrupt-requested":
           yield* processTurnInterruptRequested(event);
           return;
@@ -658,6 +757,11 @@ const make = Effect.gen(function* () {
           return;
         case "thread.session-stop-requested":
           yield* processSessionStopRequested(event);
+          return;
+        case "thread.session-set":
+          if (event.payload.session.status === "ready") {
+            yield* maybeDispatchQueuedFollowUp(event.payload.threadId);
+          }
           return;
       }
     });
@@ -688,10 +792,13 @@ const make = Effect.gen(function* () {
         if (
           event.type !== "thread.runtime-mode-set" &&
           event.type !== "thread.turn-start-requested" &&
+          event.type !== "thread.turn-steer-requested" &&
+          event.type !== "thread.follow-up-queued" &&
           event.type !== "thread.turn-interrupt-requested" &&
           event.type !== "thread.approval-response-requested" &&
           event.type !== "thread.user-input-response-requested" &&
-          event.type !== "thread.session-stop-requested"
+          event.type !== "thread.session-stop-requested" &&
+          event.type !== "thread.session-set"
         ) {
           return Effect.void;
         }

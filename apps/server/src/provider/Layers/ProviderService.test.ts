@@ -172,6 +172,10 @@ function makeFakeCodexAdapter(provider: ProviderKind = "codex") {
       }),
   );
 
+  const steerTurn = vi.fn(
+    (): Effect.Effect<void, ProviderAdapterError> => Effect.void,
+  );
+
   const adapter: ProviderAdapterShape<ProviderAdapterError> = {
     provider,
     capabilities: {
@@ -179,6 +183,7 @@ function makeFakeCodexAdapter(provider: ProviderKind = "codex") {
     },
     startSession,
     sendTurn,
+    steerTurn,
     interruptTurn,
     respondToRequest,
     respondToUserInput,
@@ -200,6 +205,7 @@ function makeFakeCodexAdapter(provider: ProviderKind = "codex") {
     emit,
     startSession,
     sendTurn,
+    steerTurn,
     interruptTurn,
     respondToRequest,
     respondToUserInput,

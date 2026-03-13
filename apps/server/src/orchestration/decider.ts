@@ -317,6 +317,108 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       return [userMessageEvent, turnStartRequestedEvent];
     }
 
+    case "thread.turn.steer": {
+      yield* requireThread({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      const thread = readModel.threads.find((entry) => entry.id === command.threadId);
+      if (!thread?.session || thread.session.status !== "running" || thread.session.activeTurnId === null) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Thread '${command.threadId}' does not have an active running turn to steer.`,
+        });
+      }
+      const userMessageEvent: Omit<OrchestrationEvent, "sequence"> = {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.message-sent",
+        payload: {
+          threadId: command.threadId,
+          messageId: command.message.messageId,
+          role: "user",
+          text: command.message.text,
+          turnId: thread.session.activeTurnId,
+          streaming: false,
+          createdAt: command.createdAt,
+          updatedAt: command.createdAt,
+        },
+      };
+      const turnSteerRequestedEvent: Omit<OrchestrationEvent, "sequence"> = {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        causationEventId: userMessageEvent.eventId,
+        type: "thread.turn-steer-requested",
+        payload: {
+          threadId: command.threadId,
+          turnId: thread.session.activeTurnId,
+          messageId: command.message.messageId,
+          createdAt: command.createdAt,
+        },
+      };
+      return [userMessageEvent, turnSteerRequestedEvent];
+    }
+
+    case "thread.follow-up.queue": {
+      const thread = yield* requireThread({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      if (
+        thread.session === null ||
+        (thread.session.status !== "running" && thread.session.status !== "ready")
+      ) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Thread '${command.threadId}' is not active and cannot accept queued follow-ups.`,
+        });
+      }
+      return {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.follow-up-queued",
+        payload: {
+          threadId: command.threadId,
+          followUp: command.followUp,
+        },
+      };
+    }
+
+    case "thread.follow-up.remove": {
+      yield* requireThread({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      return {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.follow-up-removed",
+        payload: {
+          threadId: command.threadId,
+          messageId: command.messageId,
+        },
+      };
+    }
+
     case "thread.turn.interrupt": {
       yield* requireThread({
         readModel,
@@ -634,6 +736,163 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           activity: command.activity,
         },
       };
+    }
+
+    case "thread.follow-up.dispatch-next": {
+      const thread = yield* requireThread({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      const followUp = thread.queuedFollowUps[0];
+      if (!followUp) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Thread '${command.threadId}' does not have a queued follow-up to dispatch.`,
+        });
+      }
+      if (thread.session === null || thread.session.status !== "ready") {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Thread '${command.threadId}' is not ready to dispatch queued follow-ups.`,
+        });
+      }
+
+      const occurredAt = command.createdAt;
+      const events: Array<Omit<OrchestrationEvent, "sequence">> = [
+        {
+          ...withEventBase({
+            aggregateKind: "thread",
+            aggregateId: command.threadId,
+            occurredAt,
+            commandId: command.commandId,
+          }),
+          type: "thread.follow-up-removed",
+          payload: {
+            threadId: command.threadId,
+            messageId: followUp.messageId,
+          },
+        },
+      ];
+
+      if (followUp.model !== undefined && followUp.model !== thread.model) {
+        events.push({
+          ...withEventBase({
+            aggregateKind: "thread",
+            aggregateId: command.threadId,
+            occurredAt,
+            commandId: command.commandId,
+          }),
+          type: "thread.meta-updated",
+          payload: {
+            threadId: command.threadId,
+            model: followUp.model,
+            updatedAt: occurredAt,
+          },
+        });
+      }
+
+      if (followUp.runtimeMode !== thread.runtimeMode) {
+        events.push({
+          ...withEventBase({
+            aggregateKind: "thread",
+            aggregateId: command.threadId,
+            occurredAt,
+            commandId: command.commandId,
+          }),
+          type: "thread.runtime-mode-set",
+          payload: {
+            threadId: command.threadId,
+            runtimeMode: followUp.runtimeMode,
+            updatedAt: occurredAt,
+          },
+        });
+      }
+
+      if (followUp.interactionMode !== thread.interactionMode) {
+        events.push({
+          ...withEventBase({
+            aggregateKind: "thread",
+            aggregateId: command.threadId,
+            occurredAt,
+            commandId: command.commandId,
+          }),
+          type: "thread.interaction-mode-set",
+          payload: {
+            threadId: command.threadId,
+            interactionMode: followUp.interactionMode,
+            updatedAt: occurredAt,
+          },
+        });
+      }
+
+      events.push({
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.session-set",
+        payload: {
+          threadId: command.threadId,
+          session: {
+            ...thread.session,
+            status: "starting",
+            activeTurnId: null,
+            updatedAt: occurredAt,
+          },
+        },
+      });
+
+      const userMessageEvent: Omit<OrchestrationEvent, "sequence"> = {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.message-sent",
+        payload: {
+          threadId: command.threadId,
+          messageId: followUp.messageId,
+          role: "user",
+          text: followUp.text,
+          turnId: null,
+          streaming: false,
+          createdAt: occurredAt,
+          updatedAt: occurredAt,
+        },
+      };
+      const turnStartRequestedEvent: Omit<OrchestrationEvent, "sequence"> = {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt,
+          commandId: command.commandId,
+        }),
+        causationEventId: userMessageEvent.eventId,
+        type: "thread.turn-start-requested",
+        payload: {
+          threadId: command.threadId,
+          messageId: followUp.messageId,
+          ...(followUp.provider !== undefined ? { provider: followUp.provider } : {}),
+          ...(followUp.model !== undefined ? { model: followUp.model } : {}),
+          ...(followUp.serviceTier !== undefined ? { serviceTier: followUp.serviceTier } : {}),
+          ...(followUp.modelOptions !== undefined ? { modelOptions: followUp.modelOptions } : {}),
+          ...(followUp.providerOptions !== undefined
+            ? { providerOptions: followUp.providerOptions }
+            : {}),
+          assistantDeliveryMode:
+            followUp.assistantDeliveryMode ?? DEFAULT_ASSISTANT_DELIVERY_MODE,
+          runtimeMode: followUp.runtimeMode,
+          interactionMode: followUp.interactionMode,
+          createdAt: occurredAt,
+        },
+      };
+
+      events.push(userMessageEvent, turnStartRequestedEvent);
+      return events;
     }
 
     default: {

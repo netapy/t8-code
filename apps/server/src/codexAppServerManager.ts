@@ -123,6 +123,12 @@ export interface CodexAppServerSendTurnInput {
   readonly interactionMode?: ProviderInteractionMode;
 }
 
+export interface CodexAppServerSteerTurnInput {
+  readonly threadId: ThreadId;
+  readonly turnId: TurnId;
+  readonly input: string;
+}
+
 export interface CodexAppServerStartSessionInput {
   readonly threadId: ThreadId;
   readonly provider?: "codex";
@@ -833,6 +839,30 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
         ? { resumeCursor: context.session.resumeCursor }
         : {}),
     };
+  }
+
+  async steerTurn(input: CodexAppServerSteerTurnInput): Promise<void> {
+    const context = this.requireSession(input.threadId);
+    const providerThreadId = readResumeThreadId({
+      threadId: context.session.threadId,
+      runtimeMode: context.session.runtimeMode,
+      resumeCursor: context.session.resumeCursor,
+    });
+    if (!providerThreadId) {
+      throw new Error("Session is missing provider resume thread id.");
+    }
+
+    await this.sendRequest(context, "turn/steer", {
+      threadId: providerThreadId,
+      input: [
+        {
+          type: "text",
+          text: input.input,
+          text_elements: [],
+        },
+      ],
+      expectedTurnId: input.turnId,
+    });
   }
 
   async interruptTurn(threadId: ThreadId, turnId?: TurnId): Promise<void> {

@@ -1,5 +1,6 @@
 import type {
   OrchestrationLatestTurn,
+  OrchestrationQueuedFollowUp,
   OrchestrationProposedPlanId,
   OrchestrationSessionStatus,
   OrchestrationThreadActivity,
@@ -102,6 +103,7 @@ export interface Thread {
   worktreePath: string | null;
   turnDiffSummaries: TurnDiffSummary[];
   activities: OrchestrationThreadActivity[];
+  queuedFollowUps: OrchestrationQueuedFollowUp[];
 }
 
 export interface ThreadSession {

@@ -1375,6 +1375,17 @@ const makeCodexAdapter = (options?: CodexAdapterLiveOptions) =>
         );
       });
 
+    const steerTurn: CodexAdapterShape["steerTurn"] = (input) =>
+      Effect.tryPromise({
+        try: () =>
+          manager.steerTurn({
+            threadId: input.threadId,
+            turnId: input.turnId,
+            input: input.input,
+          }),
+        catch: (cause) => toRequestError(input.threadId, "turn/steer", cause),
+      });
+
     const interruptTurn: CodexAdapterShape["interruptTurn"] = (threadId, turnId) =>
       Effect.tryPromise({
         try: () => manager.interruptTurn(threadId, turnId),
@@ -1497,6 +1508,7 @@ const makeCodexAdapter = (options?: CodexAdapterLiveOptions) =>
       },
       startSession,
       sendTurn,
+      steerTurn,
       interruptTurn,
       readThread,
       rollbackThread,
