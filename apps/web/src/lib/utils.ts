@@ -40,7 +40,7 @@ function uuidFromMathRandom(): string {
   });
 }
 
-export function createUuid(): string {
+export function randomUUID(): string {
   if (typeof globalThis.crypto?.randomUUID === "function") {
     return globalThis.crypto.randomUUID();
   }
@@ -50,13 +50,17 @@ export function createUuid(): string {
   return uuidFromMathRandom();
 }
 
-export const newCommandId = (): CommandId => CommandId.makeUnsafe(createUuid());
+export function createUuid(): string {
+  return randomUUID();
+}
 
-export const newProjectId = (): ProjectId => ProjectId.makeUnsafe(createUuid());
+export const newCommandId = (): CommandId => CommandId.makeUnsafe(randomUUID());
 
-export const newThreadId = (): ThreadId => ThreadId.makeUnsafe(createUuid());
+export const newProjectId = (): ProjectId => ProjectId.makeUnsafe(randomUUID());
 
-export const newMessageId = (): MessageId => MessageId.makeUnsafe(createUuid());
+export const newThreadId = (): ThreadId => ThreadId.makeUnsafe(randomUUID());
+
+export const newMessageId = (): MessageId => MessageId.makeUnsafe(randomUUID());
 
 export async function copyTextToClipboard(text: string): Promise<void> {
   if (typeof globalThis.navigator?.clipboard?.writeText === "function") {
