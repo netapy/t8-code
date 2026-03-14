@@ -122,11 +122,11 @@
 
 body {
   font-family:
-    "DM Sans",
+    ui-sans-serif,
+    system-ui,
     -apple-system,
     BlinkMacSystemFont,
     "Segoe UI",
-    system-ui,
     sans-serif;
   margin: 0;
   padding: 0;
@@ -159,8 +159,10 @@ body::after {
 pre,
 code,
 textarea,
-input {
-  font-family: "SF Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+input,
+select,
+button {
+  font-family: inherit;
 }
 
 /* Window drag region (frameless titlebar) */
