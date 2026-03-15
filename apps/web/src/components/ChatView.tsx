@@ -218,7 +218,6 @@ const isTextEntryRedirectBlocked = (target: EventTarget | null): boolean => {
   }
   return target.closest(TEXT_ENTRY_DIALOG_SELECTOR) !== null;
 };
-
 interface ChatViewProps {
   threadId: ThreadId;
 }
