@@ -686,6 +686,11 @@ export default function Sidebar() {
       });
     },
   });
+  const startRenamingThread = useCallback((threadId: ThreadId, title: string) => {
+    setRenamingThreadId(threadId);
+    setRenamingTitle(title);
+    renamingCommittedRef.current = false;
+  }, []);
   const handleThreadContextMenu = useCallback(
     async (threadId: ThreadId, position: { x: number; y: number }) => {
       const api = readNativeApi();
@@ -722,9 +727,7 @@ export default function Sidebar() {
       }
 
       if (clicked === "rename") {
-        setRenamingThreadId(threadId);
-        setRenamingTitle(thread.title);
-        renamingCommittedRef.current = false;
+        startRenamingThread(threadId, thread.title);
         return;
       }
 
@@ -750,7 +753,14 @@ export default function Sidebar() {
       }
       await deleteThread(threadId);
     },
-    [appSettings.confirmThreadDelete, copyToClipboard, deleteThread, markThreadUnread, threads],
+    [
+      appSettings.confirmThreadDelete,
+      copyToClipboard,
+      deleteThread,
+      markThreadUnread,
+      startRenamingThread,
+      threads,
+    ],
   );
 
   const handleMultiSelectContextMenu = useCallback(
@@ -1559,7 +1569,14 @@ export default function Sidebar() {
                                             onClick={(e) => e.stopPropagation()}
                                           />
                                         ) : (
-                                          <span className="min-w-0 flex-1 truncate text-xs">
+                                          <span
+                                            className="min-w-0 flex-1 truncate text-xs"
+                                            onDoubleClick={(event) => {
+                                              event.preventDefault();
+                                              event.stopPropagation();
+                                              startRenamingThread(thread.id, thread.title);
+                                            }}
+                                          >
                                             {thread.title}
                                           </span>
                                         )}
