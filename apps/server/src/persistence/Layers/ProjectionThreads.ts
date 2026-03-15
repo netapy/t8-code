@@ -1,6 +1,6 @@
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 import * as SqlSchema from "effect/unstable/sql/SqlSchema";
-import { Effect, Layer, Option, Schema } from "effect";
+import { Effect, Layer, Option, Schema, Struct } from "effect";
 import { OrchestrationQueuedFollowUp, OrchestrationThreadContextUsage } from "@t3tools/contracts";
 
 import { toPersistenceSqlError } from "../Errors.ts";
@@ -12,6 +12,13 @@ import {
   ProjectionThreadRepository,
   type ProjectionThreadRepositoryShape,
 } from "../Services/ProjectionThreads.ts";
+
+const ProjectionThreadWriteSchema = ProjectionThread.mapFields(
+  Struct.assign({
+    contextUsage: Schema.fromJsonString(Schema.NullOr(OrchestrationThreadContextUsage)),
+    queuedFollowUps: Schema.fromJsonString(Schema.Array(OrchestrationQueuedFollowUp)),
+  }),
+);
 
 const ProjectionThreadDbRowSchema = Schema.Struct({
   threadId: ProjectionThread.fields.threadId,
@@ -44,7 +51,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
 
   const upsertProjectionThreadRow = SqlSchema.void({
-    Request: ProjectionThread,
+    Request: ProjectionThreadWriteSchema,
     execute: (row) =>
       sql`
         INSERT INTO projection_threads (
