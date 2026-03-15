@@ -884,6 +884,22 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
     });
   }
 
+  async compactThread(threadId: ThreadId): Promise<void> {
+    const context = this.requireSession(threadId);
+    const providerThreadId = readResumeThreadId({
+      threadId: context.session.threadId,
+      runtimeMode: context.session.runtimeMode,
+      resumeCursor: context.session.resumeCursor,
+    });
+    if (!providerThreadId) {
+      throw new Error("Session is missing a provider resume thread id.");
+    }
+
+    await this.sendRequest(context, "thread/compact/start", {
+      threadId: providerThreadId,
+    });
+  }
+
   async readThread(threadId: ThreadId): Promise<CodexThreadSnapshot> {
     const context = this.requireSession(threadId);
     const providerThreadId = readResumeThreadId({

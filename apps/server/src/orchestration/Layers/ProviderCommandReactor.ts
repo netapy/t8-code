@@ -35,6 +35,7 @@ type ProviderIntentEvent = Extract<
       | "thread.turn-steer-requested"
       | "thread.follow-up-queued"
       | "thread.turn-interrupt-requested"
+      | "thread.compact-requested"
       | "thread.approval-response-requested"
       | "thread.user-input-response-requested"
       | "thread.session-stop-requested"
@@ -512,6 +513,14 @@ const make = Effect.gen(function* () {
     yield* providerService.interruptTurn({ threadId: event.payload.threadId });
   });
 
+  const processThreadCompactRequested = Effect.fnUntraced(function* (
+    event: Extract<ProviderIntentEvent, { type: "thread.compact-requested" }>,
+  ) {
+    yield* providerService.compactThread({
+      threadId: event.payload.threadId,
+    });
+  });
+
   const processTurnSteerRequested = Effect.fnUntraced(function* (
     event: Extract<ProviderIntentEvent, { type: "thread.turn-steer-requested" }>,
   ) {
@@ -751,6 +760,9 @@ const make = Effect.gen(function* () {
         case "thread.turn-interrupt-requested":
           yield* processTurnInterruptRequested(event);
           return;
+        case "thread.compact-requested":
+          yield* processThreadCompactRequested(event);
+          return;
         case "thread.approval-response-requested":
           yield* processApprovalResponseRequested(event);
           return;
@@ -791,6 +803,7 @@ const make = Effect.gen(function* () {
         event.type !== "thread.turn-steer-requested" &&
         event.type !== "thread.follow-up-queued" &&
         event.type !== "thread.turn-interrupt-requested" &&
+        event.type !== "thread.compact-requested" &&
         event.type !== "thread.approval-response-requested" &&
         event.type !== "thread.user-input-response-requested" &&
         event.type !== "thread.session-stop-requested" &&

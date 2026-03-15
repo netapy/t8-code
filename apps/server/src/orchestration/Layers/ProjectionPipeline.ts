@@ -505,6 +505,7 @@ const makeOrchestrationProjectionPipeline = Effect.gen(function* () {
         case "thread.context-usage-set":
         case "thread.follow-up-queued":
         case "thread.follow-up-removed":
+        case "thread.compact-requested":
         case "thread.activity-appended": {
           const existingRow = yield* projectionThreadRepository.getById({
             threadId: event.payload.threadId,

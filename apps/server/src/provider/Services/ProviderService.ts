@@ -13,6 +13,7 @@
  */
 import type {
   ProviderInterruptTurnInput,
+  ProviderCompactThreadInput,
   ProviderKind,
   ProviderRespondToRequestInput,
   ProviderRespondToUserInputInput,
@@ -60,6 +61,13 @@ export interface ProviderServiceShape {
    */
   readonly interruptTurn: (
     input: ProviderInterruptTurnInput,
+  ) => Effect.Effect<void, ProviderServiceError>;
+
+  /**
+   * Compact the current provider thread context.
+   */
+  readonly compactThread: (
+    input: ProviderCompactThreadInput,
   ) => Effect.Effect<void, ProviderServiceError>;
 
   /**

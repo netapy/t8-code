@@ -447,6 +447,9 @@ export function projectEvent(
         }),
       );
 
+    case "thread.compact-requested":
+      return Effect.succeed(nextBase);
+
     case "thread.session-set":
       return Effect.gen(function* () {
         const payload = yield* decodeForEvent(

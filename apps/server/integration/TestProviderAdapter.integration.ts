@@ -472,6 +472,8 @@ export const makeTestProviderAdapterHarness = (options?: MakeTestProviderAdapter
       });
     const steerTurn: ProviderAdapterShape<ProviderAdapterError>["steerTurn"] = (input) =>
       sessions.has(input.threadId) ? Effect.void : missingSessionEffect(provider, input.threadId);
+    const compactThread: ProviderAdapterShape<ProviderAdapterError>["compactThread"] = (input) =>
+      sessions.has(input.threadId) ? Effect.void : missingSessionEffect(provider, input.threadId);
 
     const adapter: ProviderAdapterShape<ProviderAdapterError> = {
       provider,
@@ -482,6 +484,7 @@ export const makeTestProviderAdapterHarness = (options?: MakeTestProviderAdapter
       sendTurn,
       steerTurn,
       interruptTurn,
+      compactThread,
       respondToRequest,
       respondToUserInput,
       stopSession,

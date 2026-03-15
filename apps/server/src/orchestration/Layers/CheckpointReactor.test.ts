@@ -87,6 +87,7 @@ function createProviderServiceHarness(
     sendTurn: () => unsupported(),
     steerTurn: () => unsupported(),
     interruptTurn: () => unsupported(),
+    compactThread: () => unsupported(),
     respondToRequest: () => unsupported(),
     respondToUserInput: () => unsupported(),
     stopSession: () => unsupported(),

@@ -446,6 +446,33 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       };
     }
 
+    case "thread.compact": {
+      const thread = yield* requireThread({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      if (thread.session?.status === "running") {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Thread '${command.threadId}' is running and cannot compact until the turn finishes.`,
+        });
+      }
+      return {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.compact-requested",
+        payload: {
+          threadId: command.threadId,
+          createdAt: command.createdAt,
+        },
+      };
+    }
+
     case "thread.approval.respond": {
       yield* requireThread({
         readModel,

@@ -12,6 +12,7 @@
 import {
   NonNegativeInt,
   ThreadId,
+  ProviderCompactThreadInput,
   ProviderInterruptTurnInput,
   ProviderRespondToRequestInput,
   ProviderRespondToUserInputInput,
@@ -387,6 +388,24 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
         });
       });
 
+    const compactThread: ProviderServiceShape["compactThread"] = (rawInput) =>
+      Effect.gen(function* () {
+        const input = yield* decodeInputOrValidationError({
+          operation: "ProviderService.compactThread",
+          schema: ProviderCompactThreadInput,
+          payload: rawInput,
+        });
+        const routed = yield* resolveRoutableSession({
+          threadId: input.threadId,
+          operation: "ProviderService.compactThread",
+          allowRecovery: true,
+        });
+        yield* routed.adapter.compactThread(input);
+        yield* analytics.record("provider.thread.compacted", {
+          provider: routed.adapter.provider,
+        });
+      });
+
     const respondToRequest: ProviderServiceShape["respondToRequest"] = (rawInput) =>
       Effect.gen(function* () {
         const input = yield* decodeInputOrValidationError({
@@ -551,6 +570,7 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
       sendTurn,
       steerTurn,
       interruptTurn,
+      compactThread,
       respondToRequest,
       respondToUserInput,
       stopSession,

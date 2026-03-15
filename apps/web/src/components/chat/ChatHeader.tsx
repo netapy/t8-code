@@ -72,24 +72,30 @@ export const ChatHeader = memo(function ChatHeader({
   onToggleTerminal,
   onToggleDiff,
 }: ChatHeaderProps) {
+  const normalizedContextUsage =
+    contextUsage !== null && contextUsage.totalTokens <= contextUsage.modelContextWindow
+      ? contextUsage
+      : null;
   const contextUsageLabel =
-    contextUsage === null
+    normalizedContextUsage === null
       ? null
-      : `${formatCompactTokens(contextUsage.remainingTokens)} left / ${formatCompactTokens(
-          contextUsage.modelContextWindow,
+      : `${formatCompactTokens(normalizedContextUsage.remainingTokens)} left / ${formatCompactTokens(
+          normalizedContextUsage.modelContextWindow,
         )}`;
   const contextUsageClassName =
-    contextUsage === null
+    normalizedContextUsage === null
       ? ""
-      : contextUsage.remainingTokens <= Math.floor(contextUsage.modelContextWindow * 0.1)
+      : normalizedContextUsage.remainingTokens <=
+          Math.floor(normalizedContextUsage.modelContextWindow * 0.1)
         ? "text-amber-700"
-        : contextUsage.remainingTokens <= Math.floor(contextUsage.modelContextWindow * 0.25)
+        : normalizedContextUsage.remainingTokens <=
+            Math.floor(normalizedContextUsage.modelContextWindow * 0.25)
           ? "text-amber-600"
           : "";
   const contextUsageTooltip =
-    contextUsage === null
+    normalizedContextUsage === null
       ? null
-      : `${contextUsage.totalTokens.toLocaleString()} used of ${contextUsage.modelContextWindow.toLocaleString()} tokens`;
+      : `${normalizedContextUsage.totalTokens.toLocaleString()} used of ${normalizedContextUsage.modelContextWindow.toLocaleString()} tokens`;
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2">

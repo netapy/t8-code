@@ -175,6 +175,8 @@ function itemTitle(itemType: CanonicalItemType): string | undefined {
       return "Web search";
     case "image_view":
       return "Image view";
+    case "context_compaction":
+      return "Context compaction";
     case "error":
       return "Error";
     default:
@@ -1416,6 +1418,12 @@ const makeCodexAdapter = (options?: CodexAdapterLiveOptions) =>
         catch: (cause) => toRequestError(threadId, "turn/interrupt", cause),
       });
 
+    const compactThread: CodexAdapterShape["compactThread"] = (input) =>
+      Effect.tryPromise({
+        try: () => manager.compactThread(input.threadId),
+        catch: (cause) => toRequestError(input.threadId, "thread/compact/start", cause),
+      });
+
     const readThread: CodexAdapterShape["readThread"] = (threadId) =>
       Effect.tryPromise({
         try: () => manager.readThread(threadId),
@@ -1534,6 +1542,7 @@ const makeCodexAdapter = (options?: CodexAdapterLiveOptions) =>
       sendTurn,
       steerTurn,
       interruptTurn,
+      compactThread,
       readThread,
       rollbackThread,
       respondToRequest,

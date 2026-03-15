@@ -100,24 +100,12 @@ import {
   LockIcon,
   LockOpenIcon,
   XIcon,
-  CopyIcon,
-  CheckIcon,
-  ZapIcon,
-  TerminalSquare,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Separator } from "./ui/separator";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "./ui/menu";
-import {
-  cn,
-  copyTextToClipboard,
-  createUuid,
-  newCommandId,
-  newMessageId,
-  newThreadId,
-  randomUUID,
-} from "~/lib/utils";
+import { cn, newCommandId, newMessageId, newThreadId, randomUUID } from "~/lib/utils";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { toastManager } from "./ui/toast";
 import { decodeProjectScriptKeybindingRule } from "~/lib/projectScriptKeybindings";
@@ -187,6 +175,17 @@ const EMPTY_QUEUED_FOLLOW_UPS: Thread["queuedFollowUps"] = [];
 const COMPOSER_PATH_QUERY_DEBOUNCE_MS = 120;
 const SCRIPT_TERMINAL_COLS = 120;
 const SCRIPT_TERMINAL_ROWS = 30;
+const TEXT_ENTRY_DIALOG_SELECTOR = [
+  "[data-slot='dialog-popup']",
+  "[data-slot='alert-dialog-popup']",
+  "[data-slot='command-dialog-popup']",
+  "[data-slot='popover-popup']",
+  "[data-slot='menu-popup']",
+  "[role='dialog']",
+  "[role='menu']",
+  "[role='listbox']",
+  "[role='combobox']",
+].join(", ");
 
 const extendReplacementRangeForTrailingSpace = (
   text: string,
@@ -197,6 +196,27 @@ const extendReplacementRangeForTrailingSpace = (
     return rangeEnd;
   }
   return text[rangeEnd] === " " ? rangeEnd + 1 : rangeEnd;
+};
+
+const isEditableTypingTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  if (target.isContentEditable) {
+    return true;
+  }
+  return (
+    target.closest(
+      "input, textarea, select, [contenteditable='true'], [contenteditable=''], [role='textbox'], [data-testid='composer-editor']",
+    ) !== null
+  );
+};
+
+const isTextEntryRedirectBlocked = (target: EventTarget | null): boolean => {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  return target.closest(TEXT_ENTRY_DIALOG_SELECTOR) !== null;
 };
 
 interface ChatViewProps {
@@ -979,6 +999,17 @@ export default function ChatView({ threadId }: ChatViewProps) {
           label: "/default",
           description: "Switch this thread back to normal chat mode",
         },
+        ...(isServerThread && !canSteerActiveTurn
+          ? [
+              {
+                id: "slash:compact",
+                type: "slash-command" as const,
+                command: "compact" as const,
+                label: "/compact",
+                description: "Compact the Codex context for this thread",
+              },
+            ]
+          : []),
       ] satisfies ReadonlyArray<Extract<ComposerCommandItem, { type: "slash-command" }>>;
       const query = composerTrigger.query.trim().toLowerCase();
       if (!query) {
@@ -1005,7 +1036,13 @@ export default function ChatView({ threadId }: ChatViewProps) {
         label: name,
         description: `${providerLabel} · ${slug}`,
       }));
-  }, [composerTrigger, searchableModelOptions, workspaceEntries]);
+  }, [
+    canSteerActiveTurn,
+    composerTrigger,
+    isServerThread,
+    searchableModelOptions,
+    workspaceEntries,
+  ]);
   const composerMenuOpen = Boolean(composerTrigger);
   const activeComposerMenuItem = useMemo(
     () =>
@@ -2247,7 +2284,14 @@ export default function ChatView({ threadId }: ChatViewProps) {
     const standaloneSlashCommand =
       composerImages.length === 0 ? parseStandaloneComposerSlashCommand(trimmed) : null;
     if (standaloneSlashCommand) {
-      await handleInteractionModeChange(standaloneSlashCommand);
+      if (standaloneSlashCommand === "compact") {
+        const compacted = await handleCompactThread();
+        if (!compacted) {
+          return;
+        }
+      } else {
+        await handleInteractionModeChange(standaloneSlashCommand);
+      }
       promptRef.current = "";
       clearComposerDraftContent(activeThread.id);
       setComposerHighlightedItemId(null);
@@ -2881,6 +2925,33 @@ export default function ChatView({ threadId }: ChatViewProps) {
     ],
   );
 
+  const handleCompactThread = useCallback(async (): Promise<boolean> => {
+    const api = readNativeApi();
+    if (!api || !activeThread || !isServerThread) {
+      return false;
+    }
+    if (canSteerActiveTurn || isSendBusy || isConnecting || sendInFlightRef.current) {
+      setThreadError(activeThread.id, "Wait for the current turn to finish before compacting.");
+      return false;
+    }
+    setThreadError(activeThread.id, null);
+    try {
+      await api.orchestration.dispatchCommand({
+        type: "thread.compact",
+        commandId: newCommandId(),
+        threadId: activeThread.id,
+        createdAt: new Date().toISOString(),
+      });
+      return true;
+    } catch (err) {
+      setThreadError(
+        activeThread.id,
+        err instanceof Error ? err.message : "Failed to compact the thread context.",
+      );
+      return false;
+    }
+  }, [activeThread, canSteerActiveTurn, isConnecting, isSendBusy, isServerThread, setThreadError]);
+
   const onQueueNext = useCallback(async () => {
     const api = readNativeApi();
     if (!api || !activeThread || !isServerThread) {
@@ -3217,6 +3288,44 @@ export default function ChatView({ threadId }: ChatViewProps) {
     };
   }, [composerCursor]);
 
+  useEffect(() => {
+    const onGlobalTextEntry = (event: globalThis.KeyboardEvent) => {
+      if (
+        event.defaultPrevented ||
+        !activeThreadId ||
+        isConnecting ||
+        isComposerApprovalState ||
+        isTerminalFocused() ||
+        event.isComposing ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        event.key.length !== 1 ||
+        isEditableTypingTarget(event.target) ||
+        isTextEntryRedirectBlocked(event.target)
+      ) {
+        return;
+      }
+
+      const snapshot = readComposerSnapshot();
+      const applied = applyPromptReplacement(snapshot.cursor, snapshot.cursor, event.key);
+      if (!applied) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    window.addEventListener("keydown", onGlobalTextEntry);
+    return () => window.removeEventListener("keydown", onGlobalTextEntry);
+  }, [
+    activeThreadId,
+    applyPromptReplacement,
+    isComposerApprovalState,
+    isConnecting,
+    readComposerSnapshot,
+  ]);
+
   const resolveActiveComposerTrigger = useCallback((): {
     snapshot: { value: string; cursor: number; expandedCursor: number };
     trigger: ComposerTrigger | null;
@@ -3274,6 +3383,20 @@ export default function ChatView({ threadId }: ChatViewProps) {
           }
           return;
         }
+        if (item.command === "compact") {
+          void handleCompactThread().then((compacted) => {
+            if (!compacted) {
+              return;
+            }
+            const applied = applyPromptReplacement(trigger.rangeStart, trigger.rangeEnd, "", {
+              expectedText: snapshot.value.slice(trigger.rangeStart, trigger.rangeEnd),
+            });
+            if (applied) {
+              setComposerHighlightedItemId(null);
+            }
+          });
+          return;
+        }
         void handleInteractionModeChange(item.command === "plan" ? "plan" : "default");
         const applied = applyPromptReplacement(trigger.rangeStart, trigger.rangeEnd, "", {
           expectedText: snapshot.value.slice(trigger.rangeStart, trigger.rangeEnd),
@@ -3293,6 +3416,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
     },
     [
       applyPromptReplacement,
+      handleCompactThread,
       handleInteractionModeChange,
       onProviderModelSelect,
       resolveActiveComposerTrigger,
@@ -3543,11 +3667,13 @@ export default function ChatView({ threadId }: ChatViewProps) {
           </div>
 
           {/* Input bar */}
-          <div className={cn("px-3 pt-1.5 sm:px-5 sm:pt-2", isGitRepo ? "pb-1" : "pb-3 sm:pb-4")}>
+          <div
+            className={cn("px-2.5 pt-1 sm:px-4 sm:pt-1.5", isGitRepo ? "pb-1" : "pb-2.5 sm:pb-3")}
+          >
             <form
               ref={composerFormRef}
               onSubmit={onSend}
-              className="mx-auto w-full min-w-0 max-w-3xl"
+              className="mx-auto w-full min-w-0 max-w-[52rem]"
               data-chat-composer-form="true"
             >
               <div
@@ -3589,8 +3715,8 @@ export default function ChatView({ threadId }: ChatViewProps) {
                 {/* Textarea area */}
                 <div
                   className={cn(
-                    "relative px-3 pb-2 sm:px-4",
-                    hasComposerHeader ? "pt-2.5 sm:pt-3" : "pt-3.5 sm:pt-4",
+                    "relative px-2.5 pb-1.5 sm:px-3.5",
+                    hasComposerHeader ? "pt-2 sm:pt-2.5" : "pt-3 sm:pt-3.5",
                   )}
                 >
                   {composerMenuOpen && !isComposerApprovalState && (
@@ -3768,10 +3894,10 @@ export default function ChatView({ threadId }: ChatViewProps) {
                   <div
                     data-chat-composer-footer="true"
                     className={cn(
-                      "flex items-center justify-between px-2.5 pb-2.5 sm:px-3 sm:pb-3",
+                      "flex items-center justify-between px-2.5 pb-2 sm:px-3 sm:pb-2.5",
                       isComposerFooterCompact
                         ? "gap-1.5"
-                        : "flex-wrap gap-2 sm:flex-nowrap sm:gap-0",
+                        : "flex-wrap gap-1.5 sm:flex-nowrap sm:gap-0",
                     )}
                   >
                     <div
@@ -3833,7 +3959,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
 
                           <Button
                             variant="ghost"
-                            className="shrink-0 whitespace-nowrap px-2 text-muted-foreground/70 hover:text-foreground/80 sm:px-3"
+                            className="shrink-0 whitespace-nowrap px-1.5 text-[12px] text-muted-foreground/70 hover:text-foreground/80 sm:px-2.5"
                             size="sm"
                             type="button"
                             onClick={toggleInteractionMode}
@@ -3856,7 +3982,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
 
                           <Button
                             variant="ghost"
-                            className="shrink-0 whitespace-nowrap px-2 text-muted-foreground/70 hover:text-foreground/80 sm:px-3"
+                            className="shrink-0 whitespace-nowrap px-1.5 text-[12px] text-muted-foreground/70 hover:text-foreground/80 sm:px-2.5"
                             size="sm"
                             type="button"
                             onClick={() =>
@@ -3885,7 +4011,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
                               <Button
                                 variant="ghost"
                                 className={cn(
-                                  "shrink-0 whitespace-nowrap px-2 sm:px-3",
+                                  "shrink-0 whitespace-nowrap px-1.5 text-[12px] sm:px-2.5",
                                   planSidebarOpen
                                     ? "text-blue-400 hover:text-blue-300"
                                     : "text-muted-foreground/70 hover:text-foreground/80",

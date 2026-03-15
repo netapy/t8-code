@@ -133,19 +133,33 @@ function toThreadContextUsage(
   }
   const info =
     asRecord(firstPresent(payload.info, payload.token_usage, payload.tokenUsage)) ?? payload;
-  const totalTokenUsage =
-    asRecord(
-      firstPresent(info.total_token_usage, info.totalTokenUsage, info.total_usage, info.totalUsage),
-    ) ?? info;
-  const totalTokens = asNonNegativeInt(
-    firstPresent(totalTokenUsage.total_tokens, totalTokenUsage.totalTokens),
-  );
   const modelContextWindow = asNonNegativeInt(
     firstPresent(info.model_context_window, info.modelContextWindow),
   );
-  if (totalTokens === undefined || modelContextWindow === undefined) {
+  if (modelContextWindow === undefined) {
     return null;
   }
+
+  const lastTokenUsage = asRecord(firstPresent(info.last_token_usage, info.lastTokenUsage));
+  const totalTokenUsage = asRecord(
+    firstPresent(info.total_token_usage, info.totalTokenUsage, info.total_usage, info.totalUsage),
+  );
+  const lastTotalTokens = asNonNegativeInt(
+    firstPresent(lastTokenUsage?.total_tokens, lastTokenUsage?.totalTokens),
+  );
+  const cumulativeTotalTokens = asNonNegativeInt(
+    firstPresent(totalTokenUsage?.total_tokens, totalTokenUsage?.totalTokens),
+  );
+  const totalTokens =
+    lastTotalTokens ??
+    (cumulativeTotalTokens !== undefined && cumulativeTotalTokens <= modelContextWindow
+      ? cumulativeTotalTokens
+      : undefined);
+
+  if (totalTokens === undefined) {
+    return null;
+  }
+
   return {
     totalTokens,
     modelContextWindow,
@@ -232,6 +246,24 @@ function runtimeEventToActivities(
       : {};
   })();
   switch (event.type) {
+    case "thread.state.changed": {
+      if (event.payload.state !== "compacted") {
+        return [];
+      }
+      return [
+        {
+          id: event.eventId,
+          createdAt: event.createdAt,
+          tone: "info",
+          kind: "thread.compacted",
+          summary: "Context compacted",
+          payload: event.payload.detail !== undefined ? { detail: event.payload.detail } : {},
+          turnId: toTurnId(event.turnId) ?? null,
+          ...maybeSequence,
+        },
+      ];
+    }
+
     case "request.opened": {
       if (event.payload.requestType === "tool_user_input") {
         return [];
@@ -454,7 +486,10 @@ function runtimeEventToActivities(
     }
 
     case "item.updated": {
-      if (!isToolLifecycleItemType(event.payload.itemType)) {
+      if (
+        !isToolLifecycleItemType(event.payload.itemType) &&
+        event.payload.itemType !== "context_compaction"
+      ) {
         return [];
       }
       return [
@@ -477,7 +512,10 @@ function runtimeEventToActivities(
     }
 
     case "item.completed": {
-      if (!isToolLifecycleItemType(event.payload.itemType)) {
+      if (
+        !isToolLifecycleItemType(event.payload.itemType) &&
+        event.payload.itemType !== "context_compaction"
+      ) {
         return [];
       }
       return [
@@ -498,7 +536,10 @@ function runtimeEventToActivities(
     }
 
     case "item.started": {
-      if (!isToolLifecycleItemType(event.payload.itemType)) {
+      if (
+        !isToolLifecycleItemType(event.payload.itemType) &&
+        event.payload.itemType !== "context_compaction"
+      ) {
         return [];
       }
       return [

@@ -464,6 +464,13 @@ const ThreadTurnInterruptCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
+const ThreadCompactCommand = Schema.Struct({
+  type: Schema.Literal("thread.compact"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  createdAt: IsoDateTime,
+});
+
 const ThreadApprovalRespondCommand = Schema.Struct({
   type: Schema.Literal("thread.approval.respond"),
   commandId: CommandId,
@@ -511,6 +518,7 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ThreadFollowUpQueueCommand,
   ThreadFollowUpRemoveCommand,
   ThreadTurnInterruptCommand,
+  ThreadCompactCommand,
   ThreadApprovalRespondCommand,
   ThreadUserInputRespondCommand,
   ThreadCheckpointRevertCommand,
@@ -533,6 +541,7 @@ export const ClientOrchestrationCommand = Schema.Union([
   ThreadFollowUpQueueCommand,
   ThreadFollowUpRemoveCommand,
   ThreadTurnInterruptCommand,
+  ThreadCompactCommand,
   ThreadApprovalRespondCommand,
   ThreadUserInputRespondCommand,
   ThreadCheckpointRevertCommand,
@@ -668,6 +677,7 @@ export const OrchestrationEventType = Schema.Literals([
   "thread.follow-up-queued",
   "thread.follow-up-removed",
   "thread.turn-interrupt-requested",
+  "thread.compact-requested",
   "thread.approval-response-requested",
   "thread.user-input-response-requested",
   "thread.checkpoint-revert-requested",
@@ -799,6 +809,11 @@ export const ThreadFollowUpRemovedPayload = Schema.Struct({
 export const ThreadTurnInterruptRequestedPayload = Schema.Struct({
   threadId: ThreadId,
   turnId: Schema.optional(TurnId),
+  createdAt: IsoDateTime,
+});
+
+export const ThreadCompactRequestedPayload = Schema.Struct({
+  threadId: ThreadId,
   createdAt: IsoDateTime,
 });
 
@@ -971,6 +986,11 @@ export const OrchestrationEvent = Schema.Union([
   }),
   Schema.Struct({
     ...EventBaseFields,
+    type: Schema.Literal("thread.compact-requested"),
+    payload: ThreadCompactRequestedPayload,
+  }),
+  Schema.Struct({
+    ...EventBaseFields,
     type: Schema.Literal("thread.approval-response-requested"),
     payload: ThreadApprovalResponseRequestedPayload,
   }),
@@ -1092,6 +1112,11 @@ export const OrchestrationPersistedEvent = Schema.Union([
     ...PersistedEventBaseFields,
     eventType: Schema.Literal("thread.turn-interrupt-requested"),
     payload: ThreadTurnInterruptRequestedPayload,
+  }),
+  Schema.Struct({
+    ...PersistedEventBaseFields,
+    eventType: Schema.Literal("thread.compact-requested"),
+    payload: ThreadCompactRequestedPayload,
   }),
   Schema.Struct({
     ...PersistedEventBaseFields,

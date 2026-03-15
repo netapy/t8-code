@@ -1,5 +1,6 @@
 import {
   ApprovalRequestId,
+  type CanonicalItemType,
   isToolLifecycleItemType,
   type OrchestrationLatestTurn,
   type OrchestrationThreadActivity,
@@ -39,7 +40,7 @@ export interface WorkLogEntry {
   changedFiles?: ReadonlyArray<string>;
   tone: "thinking" | "tool" | "info" | "error";
   toolTitle?: string;
-  itemType?: ToolLifecycleItemType;
+  itemType?: ToolLifecycleItemType | Extract<CanonicalItemType, "context_compaction">;
   requestKind?: PendingApproval["requestKind"];
 }
 
@@ -409,8 +410,31 @@ export function deriveWorkLogEntries(
 ): WorkLogEntry[] {
   const ordered = [...activities].toSorted(compareActivitiesByOrder);
   return ordered
-    .filter((activity) => (latestTurnId ? activity.turnId === latestTurnId : true))
-    .filter((activity) => activity.kind !== "tool.started")
+    .filter((activity) => {
+      const payload =
+        activity.payload && typeof activity.payload === "object"
+          ? (activity.payload as Record<string, unknown>)
+          : null;
+      const itemType = extractWorkLogItemType(payload);
+      if (!latestTurnId) {
+        return true;
+      }
+      return (
+        activity.turnId === latestTurnId ||
+        itemType === "context_compaction" ||
+        activity.kind === "thread.compacted"
+      );
+    })
+    .filter((activity) => {
+      if (activity.kind !== "tool.started") {
+        return true;
+      }
+      const payload =
+        activity.payload && typeof activity.payload === "object"
+          ? (activity.payload as Record<string, unknown>)
+          : null;
+      return extractWorkLogItemType(payload) === "context_compaction";
+    })
     .filter((activity) => activity.kind !== "task.started" && activity.kind !== "task.completed")
     .filter((activity) => activity.summary !== "Checkpoint captured")
     .map((activity) => {
@@ -522,7 +546,10 @@ function stripTrailingExitCode(value: string): {
 function extractWorkLogItemType(
   payload: Record<string, unknown> | null,
 ): WorkLogEntry["itemType"] | undefined {
-  if (typeof payload?.itemType === "string" && isToolLifecycleItemType(payload.itemType)) {
+  if (
+    typeof payload?.itemType === "string" &&
+    (isToolLifecycleItemType(payload.itemType) || payload.itemType === "context_compaction")
+  ) {
     return payload.itemType;
   }
   return undefined;

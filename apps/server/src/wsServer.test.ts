@@ -1223,6 +1223,7 @@ describe("WebSocket Server", () => {
         }),
       steerTurn: () => Effect.void,
       interruptTurn: () => unsupported(),
+      compactThread: () => unsupported(),
       respondToRequest: () => unsupported(),
       respondToUserInput: () => unsupported(),
       stopSession: () => unsupported(),

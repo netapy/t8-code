@@ -340,7 +340,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
           const canRevertAgentWork = revertTurnCountByUserMessageId.has(row.message.id);
           return (
             <div className="flex justify-end">
-              <div className="group relative max-w-[80%] rounded-2xl rounded-br-sm border border-border bg-secondary px-4 py-3">
+              <div className="group relative max-w-[86%] rounded-2xl rounded-br-sm border border-border bg-secondary px-3.5 py-2.5 sm:max-w-[82%]">
                 {userImages.length > 0 && (
                   <div className="mb-2 grid max-w-[420px] grid-cols-2 gap-2">
                     {userImages.map(
@@ -379,11 +379,11 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                   </div>
                 )}
                 {row.message.text && (
-                  <pre className="whitespace-pre-wrap wrap-break-word font-mono text-sm leading-relaxed text-foreground">
+                  <pre className="whitespace-pre-wrap wrap-break-word font-mono text-[13px] leading-[1.5] text-foreground">
                     {row.message.text}
                   </pre>
                 )}
-                <div className="mt-1.5 flex items-center justify-end gap-2">
+                <div className="mt-1 flex items-center justify-end gap-1.5">
                   <div className="flex items-center gap-1.5 opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover:opacity-100">
                     {row.message.text && <MessageCopyButton text={row.message.text} />}
                     {canRevertAgentWork && (
@@ -485,15 +485,20 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                     </div>
                   );
                 })()}
-                <p className="mt-1.5 text-[10px] text-muted-foreground/30">
-                  {formatMessageMeta(
-                    row.message.createdAt,
-                    row.message.streaming
-                      ? formatElapsed(row.durationStart, nowIso)
-                      : formatElapsed(row.durationStart, row.message.completedAt),
-                    timestampFormat,
-                  )}
-                </p>
+                <div className="mt-1.5 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    {row.message.text ? <MessageCopyButton text={row.message.text} /> : null}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/30">
+                    {formatMessageMeta(
+                      row.message.createdAt,
+                      row.message.streaming
+                        ? formatElapsed(row.durationStart, nowIso)
+                        : formatElapsed(row.durationStart, row.message.completedAt),
+                      timestampFormat,
+                    )}
+                  </p>
+                </div>
               </div>
             </>
           );
@@ -689,6 +694,7 @@ function workEntryIcon(workEntry: TimelineWorkEntry): LucideIcon {
   if (workEntry.requestKind === "file-read") return EyeIcon;
   if (workEntry.requestKind === "file-change") return SquarePenIcon;
 
+  if (workEntry.itemType === "context_compaction") return ZapIcon;
   if (workEntry.itemType === "command_execution" || workEntry.command) {
     return TerminalIcon;
   }
@@ -718,6 +724,9 @@ function capitalizePhrase(value: string): string {
 }
 
 function toolWorkEntryHeading(workEntry: TimelineWorkEntry): string {
+  if (workEntry.itemType === "context_compaction") {
+    return capitalizePhrase(normalizeCompactToolLabel(workEntry.label));
+  }
   if (!workEntry.toolTitle) {
     return capitalizePhrase(normalizeCompactToolLabel(workEntry.label));
   }
