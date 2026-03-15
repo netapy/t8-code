@@ -2084,21 +2084,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
         return;
       }
 
-      if (command === "thread.togglePinned") {
-        if (!serverThread) return;
-        const api = readNativeApi();
-        if (!api) return;
-        event.preventDefault();
-        event.stopPropagation();
-        void api.orchestration.dispatchCommand({
-          type: "thread.meta.update",
-          commandId: newCommandId(),
-          threadId: serverThread.id,
-          pinned: !serverThread.pinned,
-        });
-        return;
-      }
-
       const scriptId = projectScriptIdFromCommand(command);
       if (!scriptId || !activeProject) return;
       const script = activeProject.scripts.find((entry) => entry.id === scriptId);
@@ -2114,7 +2099,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
     terminalState.terminalOpen,
     terminalState.activeTerminalId,
     activeThreadId,
-    serverThread,
     closeTerminal,
     createNewTerminal,
     setTerminalOpen,
