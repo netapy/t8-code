@@ -414,6 +414,7 @@ function createSnapshotWithHistoricalToolRows(): OrchestrationReadModel {
         id: THREAD_ID,
         projectId: PROJECT_ID,
         title: "Historical tool rows thread",
+        pinned: false,
         model: "gpt-5",
         interactionMode: "default",
         runtimeMode: "full-access",
@@ -444,6 +445,7 @@ function createSnapshotWithHistoricalToolRows(): OrchestrationReadModel {
             turnId: turnOneId,
           }),
         ],
+        queuedFollowUps: [],
         activities: [
           createThreadActivity({
             id: "activity-history-tool" as EventId,

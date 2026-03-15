@@ -1,6 +1,6 @@
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 import * as SqlSchema from "effect/unstable/sql/SqlSchema";
-import { Effect, Layer, Schema, Struct } from "effect";
+import { Effect, Layer, Option, Schema } from "effect";
 import { OrchestrationQueuedFollowUp, OrchestrationThreadContextUsage } from "@t3tools/contracts";
 
 import { toPersistenceSqlError } from "../Errors.ts";
@@ -13,19 +13,38 @@ import {
   type ProjectionThreadRepositoryShape,
 } from "../Services/ProjectionThreads.ts";
 
-const ProjectionThreadDbRowSchema = ProjectionThread.mapFields(
-  Struct.assign({
-    pinned: Schema.Number,
-    contextUsage: Schema.fromJsonString(Schema.NullOr(OrchestrationThreadContextUsage)),
-    queuedFollowUps: Schema.fromJsonString(Schema.Array(OrchestrationQueuedFollowUp)),
-  }),
-);
+const ProjectionThreadDbRowSchema = Schema.Struct({
+  threadId: ProjectionThread.fields.threadId,
+  projectId: ProjectionThread.fields.projectId,
+  title: ProjectionThread.fields.title,
+  pinned: Schema.Number,
+  model: ProjectionThread.fields.model,
+  runtimeMode: ProjectionThread.fields.runtimeMode,
+  interactionMode: ProjectionThread.fields.interactionMode,
+  branch: ProjectionThread.fields.branch,
+  worktreePath: ProjectionThread.fields.worktreePath,
+  latestTurnId: ProjectionThread.fields.latestTurnId,
+  contextUsage: Schema.fromJsonString(Schema.NullOr(OrchestrationThreadContextUsage)),
+  queuedFollowUps: Schema.fromJsonString(Schema.Array(OrchestrationQueuedFollowUp)),
+  createdAt: ProjectionThread.fields.createdAt,
+  updatedAt: ProjectionThread.fields.updatedAt,
+  deletedAt: ProjectionThread.fields.deletedAt,
+});
+
+function normalizeProjectionThreadRow(
+  row: Schema.Schema.Type<typeof ProjectionThreadDbRowSchema>,
+): ProjectionThread {
+  return {
+    ...row,
+    pinned: row.pinned === 1,
+  };
+}
 
 const makeProjectionThreadRepository = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
 
   const upsertProjectionThreadRow = SqlSchema.void({
-    Request: ProjectionThreadDbRowSchema,
+    Request: ProjectionThread,
     execute: (row) =>
       sql`
         INSERT INTO projection_threads (
@@ -151,11 +170,13 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
   const getById: ProjectionThreadRepositoryShape["getById"] = (input) =>
     getProjectionThreadRow(input).pipe(
       Effect.mapError(toPersistenceSqlError("ProjectionThreadRepository.getById:query")),
+      Effect.map((row) => row.pipe(Option.map(normalizeProjectionThreadRow))),
     );
 
   const listByProjectId: ProjectionThreadRepositoryShape["listByProjectId"] = (input) =>
     listProjectionThreadRows(input).pipe(
       Effect.mapError(toPersistenceSqlError("ProjectionThreadRepository.listByProjectId:query")),
+      Effect.map((rows) => rows.map(normalizeProjectionThreadRow)),
     );
 
   const deleteById: ProjectionThreadRepositoryShape["deleteById"] = (input) =>
