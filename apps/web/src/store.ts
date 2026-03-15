@@ -280,6 +280,7 @@ export function syncServerReadModel(state: AppState, readModel: OrchestrationRea
               ...(thread.session.lastError ? { lastError: thread.session.lastError } : {}),
             }
           : null,
+        contextUsage: thread.contextUsage ?? null,
         messages: thread.messages.map((message) => {
           const attachments = message.attachments?.map((attachment) => ({
             type: "image" as const,

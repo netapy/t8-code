@@ -122,7 +122,9 @@ function makeSkippedEntry(
   };
 }
 
-async function readRolloutMessages(rolloutPath: string): Promise<ReadonlyArray<CodexImportedMessage>> {
+async function readRolloutMessages(
+  rolloutPath: string,
+): Promise<ReadonlyArray<CodexImportedMessage>> {
   const content = await fs.readFile(rolloutPath, "utf8");
   const messages: CodexImportedMessage[] = [];
 
@@ -147,8 +149,7 @@ async function readRolloutMessages(rolloutPath: string): Promise<ReadonlyArray<C
         : new Date().toISOString();
     const payloadType = parsed.payload.type;
     if (payloadType === "user_message") {
-      const text =
-        typeof parsed.payload.message === "string" ? parsed.payload.message.trim() : "";
+      const text = typeof parsed.payload.message === "string" ? parsed.payload.message.trim() : "";
       if (text.length === 0) {
         continue;
       }
@@ -162,8 +163,7 @@ async function readRolloutMessages(rolloutPath: string): Promise<ReadonlyArray<C
     }
 
     if (payloadType === "agent_message" && parsed.payload.phase === "final_answer") {
-      const text =
-        typeof parsed.payload.message === "string" ? parsed.payload.message.trim() : "";
+      const text = typeof parsed.payload.message === "string" ? parsed.payload.message.trim() : "";
       if (text.length === 0) {
         continue;
       }
@@ -234,10 +234,14 @@ function readCodexThreadsForCwds(input: {
   }
 }
 
-function findProjectForCwd(readModel: OrchestrationReadModel, cwd: string): OrchestrationProject | null {
+function findProjectForCwd(
+  readModel: OrchestrationReadModel,
+  cwd: string,
+): OrchestrationProject | null {
   return (
-    readModel.projects.find((project) => project.workspaceRoot === cwd && project.deletedAt === null) ??
-    null
+    readModel.projects.find(
+      (project) => project.workspaceRoot === cwd && project.deletedAt === null,
+    ) ?? null
   );
 }
 
@@ -248,12 +252,18 @@ function findAnyThreadById(
   return readModel.threads.find((thread) => thread.id === threadId) ?? null;
 }
 
-function findThreadById(readModel: OrchestrationReadModel, threadId: ThreadId): OrchestrationThread | null {
+function findThreadById(
+  readModel: OrchestrationReadModel,
+  threadId: ThreadId,
+): OrchestrationThread | null {
   const thread = findAnyThreadById(readModel, threadId);
   return thread?.deletedAt === null ? thread : null;
 }
 
-async function loadCodexImportedThread(row: CodexStateRow, codexHome: string): Promise<CodexImportedThread> {
+async function loadCodexImportedThread(
+  row: CodexStateRow,
+  codexHome: string,
+): Promise<CodexImportedThread> {
   const rolloutPath = path.isAbsolute(row.rolloutPath)
     ? row.rolloutPath
     : path.resolve(codexHome, row.rolloutPath);
@@ -330,9 +340,7 @@ export async function importCodexConversations(
       createdThreadCount,
       refreshedThreadCount,
       skippedThreadCount: 1,
-      skipped: [
-        makeSkippedEntry("codex-home", codexHome, "missing-codex-home"),
-      ],
+      skipped: [makeSkippedEntry("codex-home", codexHome, "missing-codex-home")],
     };
   }
 

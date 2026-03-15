@@ -4,6 +4,7 @@ import {
   CommandId,
   MessageId,
   type OrchestrationEvent,
+  type OrchestrationThreadContextUsage,
   CheckpointRef,
   isToolLifecycleItemType,
   ThreadId,
@@ -104,6 +105,53 @@ function runtimePayloadRecord(event: ProviderRuntimeEvent): Record<string, unkno
     return undefined;
   }
   return payload as Record<string, unknown>;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
+}
+
+function asNonNegativeInt(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
+  }
+  const normalized = Math.floor(value);
+  return normalized >= 0 ? normalized : undefined;
+}
+
+function firstPresent(...values: ReadonlyArray<unknown>): unknown {
+  return values.find((value) => value !== undefined);
+}
+
+function toThreadContextUsage(
+  usage: unknown,
+  updatedAt: string,
+): OrchestrationThreadContextUsage | null {
+  const payload = asRecord(usage);
+  if (!payload) {
+    return null;
+  }
+  const info =
+    asRecord(firstPresent(payload.info, payload.token_usage, payload.tokenUsage)) ?? payload;
+  const totalTokenUsage =
+    asRecord(
+      firstPresent(info.total_token_usage, info.totalTokenUsage, info.total_usage, info.totalUsage),
+    ) ?? info;
+  const totalTokens = asNonNegativeInt(
+    firstPresent(totalTokenUsage.total_tokens, totalTokenUsage.totalTokens),
+  );
+  const modelContextWindow = asNonNegativeInt(
+    firstPresent(info.model_context_window, info.modelContextWindow),
+  );
+  if (totalTokens === undefined || modelContextWindow === undefined) {
+    return null;
+  }
+  return {
+    totalTokens,
+    modelContextWindow,
+    remainingTokens: Math.max(0, modelContextWindow - totalTokens),
+    updatedAt,
+  };
 }
 
 function normalizeRuntimeTurnState(
@@ -1048,6 +1096,19 @@ const make = Effect.gen(function* () {
           threadId: thread.id,
           title: event.payload.name,
         });
+      }
+
+      if (event.type === "thread.token-usage.updated") {
+        const contextUsage = toThreadContextUsage(event.payload.usage, now);
+        if (contextUsage) {
+          yield* orchestrationEngine.dispatch({
+            type: "thread.context-usage.set",
+            commandId: providerCommandId(event, "thread-context-usage-set"),
+            threadId: thread.id,
+            contextUsage,
+            createdAt: now,
+          });
+        }
       }
 
       if (event.type === "turn.diff.updated") {

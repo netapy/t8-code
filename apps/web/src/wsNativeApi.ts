@@ -88,16 +88,13 @@ export function onServerConfigUpdated(
   };
 }
 
-export function onRateLimitsUpdated(
-  listener: (payload: RateLimitsPayload) => void,
-): () => void {
+export function onRateLimitsUpdated(listener: (payload: RateLimitsPayload) => void): () => void {
   rateLimitsListeners.add(listener);
 
   const latestRateLimits =
     lastRateLimits ??
-    ((instance?.transport.getLatestPush(WS_CHANNELS.providerRateLimitsUpdated)?.data ?? null) as
-      | RateLimitsPayload
-      | null);
+    ((instance?.transport.getLatestPush(WS_CHANNELS.providerRateLimitsUpdated)?.data ??
+      null) as RateLimitsPayload | null);
   if (latestRateLimits) {
     try {
       listener(latestRateLimits);

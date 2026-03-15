@@ -410,8 +410,9 @@ describe("importCodexConversations", () => {
       ).toEqual([
         {
           id: "codex-import:thread:codex-thread-match",
-          projectId: readModel.projects.find((project) => project.workspaceRoot === "/workspace/repo")
-            ?.id,
+          projectId: readModel.projects.find(
+            (project) => project.workspaceRoot === "/workspace/repo",
+          )?.id,
           title: "Imported thread",
         },
         {

@@ -2257,7 +2257,10 @@ export default function ChatView({ threadId }: ChatViewProps) {
     }
     if (canSteerActiveTurn) {
       if (composerImages.length > 0) {
-        setThreadError(activeThread.id, "Wait for the current turn to finish before sending images.");
+        setThreadError(
+          activeThread.id,
+          "Wait for the current turn to finish before sending images.",
+        );
         return;
       }
       if (!trimmed) {
@@ -2905,9 +2908,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
           ...(selectedModelOptionsForDispatch
             ? { modelOptions: selectedModelOptionsForDispatch }
             : {}),
-          ...(providerOptionsForDispatch
-            ? { providerOptions: providerOptionsForDispatch }
-            : {}),
+          ...(providerOptionsForDispatch ? { providerOptions: providerOptionsForDispatch } : {}),
           assistantDeliveryMode: settings.enableAssistantStreaming ? "streaming" : "buffered",
           runtimeMode,
           interactionMode,
@@ -3466,6 +3467,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
           activeThreadTitle={activeThread.title}
           activeProjectName={activeProject?.name}
           isGitRepo={isGitRepo}
+          contextUsage={activeThread.contextUsage ?? null}
           openInCwd={activeThread.worktreePath ?? activeProject?.cwd ?? null}
           activeProjectScripts={activeProject?.scripts}
           preferredScriptId={

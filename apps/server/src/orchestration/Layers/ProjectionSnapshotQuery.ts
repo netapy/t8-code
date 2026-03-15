@@ -6,6 +6,7 @@ import {
   OrchestrationCheckpointFile,
   OrchestrationQueuedFollowUp,
   OrchestrationReadModel,
+  OrchestrationThreadContextUsage,
   ProjectScript,
   TurnId,
   type OrchestrationCheckpointSummary,
@@ -56,6 +57,7 @@ const ProjectionThreadMessageDbRowSchema = ProjectionThreadMessage.mapFields(
 const ProjectionThreadProposedPlanDbRowSchema = ProjectionThreadProposedPlan;
 const ProjectionThreadSnapshotDbRowSchema = ProjectionThread.mapFields(
   Struct.assign({
+    contextUsage: Schema.fromJsonString(Schema.NullOr(OrchestrationThreadContextUsage)),
     queuedFollowUps: Schema.fromJsonString(Schema.Array(OrchestrationQueuedFollowUp)),
   }),
 );
@@ -167,6 +169,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           branch,
           worktree_path AS "worktreePath",
           latest_turn_id AS "latestTurnId",
+          context_usage_json AS "contextUsage",
           queued_follow_ups_json AS "queuedFollowUps",
           created_at AS "createdAt",
           updated_at AS "updatedAt",
@@ -540,6 +543,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
             branch: row.branch,
             worktreePath: row.worktreePath,
             latestTurn: latestTurnByThread.get(row.threadId) ?? null,
+            contextUsage: row.contextUsage,
             createdAt: row.createdAt,
             updatedAt: row.updatedAt,
             deletedAt: row.deletedAt,

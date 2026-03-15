@@ -18,6 +18,7 @@ import {
   ThreadDeletedPayload,
   ThreadInteractionModeSetPayload,
   ThreadMetaUpdatedPayload,
+  ThreadContextUsageSetPayload,
   ThreadFollowUpQueuedPayload,
   ThreadFollowUpRemovedPayload,
   ThreadProposedPlanUpsertedPayload,
@@ -260,6 +261,7 @@ export function projectEvent(
             branch: payload.branch,
             worktreePath: payload.worktreePath,
             latestTurn: null,
+            contextUsage: null,
             createdAt: payload.createdAt,
             updatedAt: payload.updatedAt,
             deletedAt: null,
@@ -395,12 +397,7 @@ export function projectEvent(
       });
 
     case "thread.follow-up-queued":
-      return decodeForEvent(
-        ThreadFollowUpQueuedPayload,
-        event.payload,
-        event.type,
-        "payload",
-      ).pipe(
+      return decodeForEvent(ThreadFollowUpQueuedPayload, event.payload, event.type, "payload").pipe(
         Effect.map((payload) => {
           const thread = nextBase.threads.find((entry) => entry.id === payload.threadId);
           if (!thread) {
@@ -498,6 +495,22 @@ export function projectEvent(
           }),
         };
       });
+
+    case "thread.context-usage-set":
+      return decodeForEvent(
+        ThreadContextUsageSetPayload,
+        event.payload,
+        event.type,
+        "payload",
+      ).pipe(
+        Effect.map((payload) => ({
+          ...nextBase,
+          threads: updateThread(nextBase.threads, payload.threadId, {
+            contextUsage: payload.contextUsage,
+            updatedAt: event.occurredAt,
+          }),
+        })),
+      );
 
     case "thread.proposed-plan-upserted":
       return Effect.gen(function* () {

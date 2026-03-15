@@ -1,7 +1,7 @@
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 import * as SqlSchema from "effect/unstable/sql/SqlSchema";
 import { Effect, Layer, Schema, Struct } from "effect";
-import { OrchestrationQueuedFollowUp } from "@t3tools/contracts";
+import { OrchestrationQueuedFollowUp, OrchestrationThreadContextUsage } from "@t3tools/contracts";
 
 import { toPersistenceSqlError } from "../Errors.ts";
 import {
@@ -15,6 +15,7 @@ import {
 
 const ProjectionThreadDbRowSchema = ProjectionThread.mapFields(
   Struct.assign({
+    contextUsage: Schema.fromJsonString(Schema.NullOr(OrchestrationThreadContextUsage)),
     queuedFollowUps: Schema.fromJsonString(Schema.Array(OrchestrationQueuedFollowUp)),
   }),
 );
@@ -36,6 +37,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           branch,
           worktree_path,
           latest_turn_id,
+          context_usage_json,
           queued_follow_ups_json,
           created_at,
           updated_at,
@@ -51,6 +53,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           ${row.branch},
           ${row.worktreePath},
           ${row.latestTurnId},
+          ${row.contextUsage},
           ${row.queuedFollowUps},
           ${row.createdAt},
           ${row.updatedAt},
@@ -66,6 +69,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           branch = excluded.branch,
           worktree_path = excluded.worktree_path,
           latest_turn_id = excluded.latest_turn_id,
+          context_usage_json = excluded.context_usage_json,
           queued_follow_ups_json = excluded.queued_follow_ups_json,
           created_at = excluded.created_at,
           updated_at = excluded.updated_at,
@@ -88,6 +92,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           branch,
           worktree_path AS "worktreePath",
           latest_turn_id AS "latestTurnId",
+          context_usage_json AS "contextUsage",
           queued_follow_ups_json AS "queuedFollowUps",
           created_at AS "createdAt",
           updated_at AS "updatedAt",
@@ -112,6 +117,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           branch,
           worktree_path AS "worktreePath",
           latest_turn_id AS "latestTurnId",
+          context_usage_json AS "contextUsage",
           queued_follow_ups_json AS "queuedFollowUps",
           created_at AS "createdAt",
           updated_at AS "updatedAt",

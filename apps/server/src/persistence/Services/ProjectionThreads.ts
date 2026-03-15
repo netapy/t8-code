@@ -8,6 +8,7 @@
  */
 import {
   IsoDateTime,
+  OrchestrationThreadContextUsage,
   OrchestrationQueuedFollowUp,
   ProjectId,
   ProviderInteractionMode,
@@ -30,6 +31,7 @@ export const ProjectionThread = Schema.Struct({
   branch: Schema.NullOr(Schema.String),
   worktreePath: Schema.NullOr(Schema.String),
   latestTurnId: Schema.NullOr(TurnId),
+  contextUsage: Schema.NullOr(OrchestrationThreadContextUsage),
   queuedFollowUps: Schema.Array(OrchestrationQueuedFollowUp),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,

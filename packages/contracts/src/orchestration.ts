@@ -269,6 +269,14 @@ export const OrchestrationLatestTurn = Schema.Struct({
 });
 export type OrchestrationLatestTurn = typeof OrchestrationLatestTurn.Type;
 
+export const OrchestrationThreadContextUsage = Schema.Struct({
+  totalTokens: NonNegativeInt,
+  modelContextWindow: NonNegativeInt,
+  remainingTokens: NonNegativeInt,
+  updatedAt: IsoDateTime,
+});
+export type OrchestrationThreadContextUsage = typeof OrchestrationThreadContextUsage.Type;
+
 export const OrchestrationThread = Schema.Struct({
   id: ThreadId,
   projectId: ProjectId,
@@ -281,6 +289,7 @@ export const OrchestrationThread = Schema.Struct({
   branch: Schema.NullOr(TrimmedNonEmptyString),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
   latestTurn: Schema.NullOr(OrchestrationLatestTurn),
+  contextUsage: Schema.optional(Schema.NullOr(OrchestrationThreadContextUsage)),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
   deletedAt: Schema.NullOr(IsoDateTime),
@@ -288,9 +297,7 @@ export const OrchestrationThread = Schema.Struct({
   queuedFollowUps: Schema.Array(OrchestrationQueuedFollowUp).pipe(
     Schema.withDecodingDefault(() => []),
   ),
-  proposedPlans: Schema.Array(OrchestrationProposedPlan).pipe(
-    Schema.withDecodingDefault(() => []),
-  ),
+  proposedPlans: Schema.Array(OrchestrationProposedPlan).pipe(Schema.withDecodingDefault(() => [])),
   activities: Schema.Array(OrchestrationThreadActivity),
   checkpoints: Schema.Array(OrchestrationCheckpointSummary),
   session: Schema.NullOr(OrchestrationSession),
@@ -603,6 +610,14 @@ const ThreadActivityAppendCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
+const ThreadContextUsageSetCommand = Schema.Struct({
+  type: Schema.Literal("thread.context-usage.set"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  contextUsage: Schema.NullOr(OrchestrationThreadContextUsage),
+  createdAt: IsoDateTime,
+});
+
 const ThreadFollowUpDispatchNextCommand = Schema.Struct({
   type: Schema.Literal("thread.follow-up.dispatch-next"),
   commandId: CommandId,
@@ -626,6 +641,7 @@ const InternalOrchestrationCommand = Schema.Union([
   ThreadProposedPlanUpsertCommand,
   ThreadTurnDiffCompleteCommand,
   ThreadActivityAppendCommand,
+  ThreadContextUsageSetCommand,
   ThreadFollowUpDispatchNextCommand,
   ThreadRevertCompleteCommand,
 ]);
@@ -658,6 +674,7 @@ export const OrchestrationEventType = Schema.Literals([
   "thread.reverted",
   "thread.session-stop-requested",
   "thread.session-set",
+  "thread.context-usage-set",
   "thread.proposed-plan-upserted",
   "thread.turn-diff-completed",
   "thread.activity-appended",
@@ -820,6 +837,11 @@ export const ThreadSessionSetPayload = Schema.Struct({
   session: OrchestrationSession,
 });
 
+export const ThreadContextUsageSetPayload = Schema.Struct({
+  threadId: ThreadId,
+  contextUsage: Schema.NullOr(OrchestrationThreadContextUsage),
+});
+
 export const ThreadProposedPlanUpsertedPayload = Schema.Struct({
   threadId: ThreadId,
   proposedPlan: OrchestrationProposedPlan,
@@ -979,6 +1001,11 @@ export const OrchestrationEvent = Schema.Union([
   }),
   Schema.Struct({
     ...EventBaseFields,
+    type: Schema.Literal("thread.context-usage-set"),
+    payload: ThreadContextUsageSetPayload,
+  }),
+  Schema.Struct({
+    ...EventBaseFields,
     type: Schema.Literal("thread.proposed-plan-upserted"),
     payload: ThreadProposedPlanUpsertedPayload,
   }),
@@ -1095,6 +1122,11 @@ export const OrchestrationPersistedEvent = Schema.Union([
     ...PersistedEventBaseFields,
     eventType: Schema.Literal("thread.session-set"),
     payload: ThreadSessionSetPayload,
+  }),
+  Schema.Struct({
+    ...PersistedEventBaseFields,
+    eventType: Schema.Literal("thread.context-usage-set"),
+    payload: ThreadContextUsageSetPayload,
   }),
   Schema.Struct({
     ...PersistedEventBaseFields,

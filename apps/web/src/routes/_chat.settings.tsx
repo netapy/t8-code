@@ -239,7 +239,8 @@ function SettingsRouteView() {
         }
       })
       .catch((error) => {
-        const message = error instanceof Error ? error.message : "Unable to import Codex conversations.";
+        const message =
+          error instanceof Error ? error.message : "Unable to import Codex conversations.";
         setCodexImportError(message);
         toastManager.add({
           type: "error",

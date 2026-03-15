@@ -144,10 +144,7 @@ const WebSocketRequestBody = Schema.Union([
   // Server meta
   tagRequestBody(WS_METHODS.serverGetConfig, Schema.Struct({})),
   tagRequestBody(WS_METHODS.serverUpsertKeybinding, KeybindingRule),
-  tagRequestBody(
-    WS_METHODS.serverImportCodexConversations,
-    ServerImportCodexConversationsRequest,
-  ),
+  tagRequestBody(WS_METHODS.serverImportCodexConversations, ServerImportCodexConversationsRequest),
 ]);
 
 export const WebSocketRequest = Schema.Struct({

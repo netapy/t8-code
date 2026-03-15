@@ -13,12 +13,24 @@ import ProjectScriptsControl, { type NewProjectScriptInput } from "../ProjectScr
 import { Toggle } from "../ui/toggle";
 import { SidebarTrigger } from "../ui/sidebar";
 import { OpenInPicker } from "./OpenInPicker";
+import type { ThreadContextUsage } from "../../types";
+
+function formatCompactTokens(value: number): string {
+  if (value < 1000) {
+    return `${value}`;
+  }
+  const compactValue = value / 1000;
+  const rounded =
+    compactValue >= 100 ? Math.round(compactValue) : Math.round(compactValue * 10) / 10;
+  return `${rounded}k`;
+}
 
 interface ChatHeaderProps {
   activeThreadId: ThreadId;
   activeThreadTitle: string;
   activeProjectName: string | undefined;
   isGitRepo: boolean;
+  contextUsage: ThreadContextUsage | null;
   openInCwd: string | null;
   activeProjectScripts: ProjectScript[] | undefined;
   preferredScriptId: string | null;
@@ -42,6 +54,7 @@ export const ChatHeader = memo(function ChatHeader({
   activeThreadTitle,
   activeProjectName,
   isGitRepo,
+  contextUsage,
   openInCwd,
   activeProjectScripts,
   preferredScriptId,
@@ -59,6 +72,25 @@ export const ChatHeader = memo(function ChatHeader({
   onToggleTerminal,
   onToggleDiff,
 }: ChatHeaderProps) {
+  const contextUsageLabel =
+    contextUsage === null
+      ? null
+      : `${formatCompactTokens(contextUsage.remainingTokens)} left / ${formatCompactTokens(
+          contextUsage.modelContextWindow,
+        )}`;
+  const contextUsageClassName =
+    contextUsage === null
+      ? ""
+      : contextUsage.remainingTokens <= Math.floor(contextUsage.modelContextWindow * 0.1)
+        ? "text-amber-700"
+        : contextUsage.remainingTokens <= Math.floor(contextUsage.modelContextWindow * 0.25)
+          ? "text-amber-600"
+          : "";
+  const contextUsageTooltip =
+    contextUsage === null
+      ? null
+      : `${contextUsage.totalTokens.toLocaleString()} used of ${contextUsage.modelContextWindow.toLocaleString()} tokens`;
+
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2">
       <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden sm:gap-3">
@@ -73,6 +105,18 @@ export const ChatHeader = memo(function ChatHeader({
           <Badge variant="outline" className="min-w-0 shrink truncate">
             {activeProjectName}
           </Badge>
+        )}
+        {contextUsageLabel && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Badge variant="outline" className={`shrink-0 ${contextUsageClassName}`}>
+                  {contextUsageLabel}
+                </Badge>
+              }
+            />
+            <TooltipPopup side="bottom">{contextUsageTooltip}</TooltipPopup>
+          </Tooltip>
         )}
         {activeProjectName && !isGitRepo && (
           <Badge variant="outline" className="shrink-0 text-[10px] text-amber-700">

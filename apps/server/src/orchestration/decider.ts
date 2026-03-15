@@ -325,7 +325,11 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         threadId: command.threadId,
       });
       const thread = readModel.threads.find((entry) => entry.id === command.threadId);
-      if (!thread?.session || thread.session.status !== "running" || thread.session.activeTurnId === null) {
+      if (
+        !thread?.session ||
+        thread.session.status !== "running" ||
+        thread.session.activeTurnId === null
+      ) {
         return yield* new OrchestrationCommandInvariantError({
           commandType: command.type,
           detail: `Thread '${command.threadId}' does not have an active running turn to steer.`,
@@ -739,6 +743,27 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       };
     }
 
+    case "thread.context-usage.set": {
+      yield* requireThread({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      return {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.context-usage-set",
+        payload: {
+          threadId: command.threadId,
+          contextUsage: command.contextUsage,
+        },
+      };
+    }
+
     case "thread.follow-up.dispatch-next": {
       const thread = yield* requireThread({
         readModel,
@@ -884,8 +909,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           ...(followUp.providerOptions !== undefined
             ? { providerOptions: followUp.providerOptions }
             : {}),
-          assistantDeliveryMode:
-            followUp.assistantDeliveryMode ?? DEFAULT_ASSISTANT_DELIVERY_MODE,
+          assistantDeliveryMode: followUp.assistantDeliveryMode ?? DEFAULT_ASSISTANT_DELIVERY_MODE,
           runtimeMode: followUp.runtimeMode,
           interactionMode: followUp.interactionMode,
           createdAt: occurredAt,

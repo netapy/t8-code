@@ -94,8 +94,7 @@ export const ServerImportCodexConversationsResult = Schema.Struct({
   skipped: Schema.Array(ServerImportCodexConversationsSkippedEntry),
   latestImportedThreadId: Schema.optional(ThreadId),
 });
-export type ServerImportCodexConversationsResult =
-  typeof ServerImportCodexConversationsResult.Type;
+export type ServerImportCodexConversationsResult = typeof ServerImportCodexConversationsResult.Type;
 
 export const ServerConfigUpdatedPayload = Schema.Struct({
   issues: ServerConfigIssues,

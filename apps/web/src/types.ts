@@ -75,6 +75,13 @@ export interface TurnDiffSummary {
   checkpointTurnCount?: number | undefined;
 }
 
+export interface ThreadContextUsage {
+  totalTokens: number;
+  modelContextWindow: number;
+  remainingTokens: number;
+  updatedAt: string;
+}
+
 export interface Project {
   id: ProjectId;
   name: string;
@@ -93,6 +100,7 @@ export interface Thread {
   runtimeMode: RuntimeMode;
   interactionMode: ProviderInteractionMode;
   session: ThreadSession | null;
+  contextUsage?: ThreadContextUsage | null;
   messages: ChatMessage[];
   proposedPlans: ProposedPlan[];
   error: string | null;

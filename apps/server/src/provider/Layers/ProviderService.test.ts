@@ -172,9 +172,7 @@ function makeFakeCodexAdapter(provider: ProviderKind = "codex") {
       }),
   );
 
-  const steerTurn = vi.fn(
-    (): Effect.Effect<void, ProviderAdapterError> => Effect.void,
-  );
+  const steerTurn = vi.fn((): Effect.Effect<void, ProviderAdapterError> => Effect.void);
 
   const adapter: ProviderAdapterShape<ProviderAdapterError> = {
     provider,

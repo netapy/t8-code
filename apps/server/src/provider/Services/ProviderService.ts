@@ -53,9 +53,7 @@ export interface ProviderServiceShape {
   /**
    * Steer an already running provider turn.
    */
-  readonly steerTurn: (
-    input: ProviderSteerTurnInput,
-  ) => Effect.Effect<void, ProviderServiceError>;
+  readonly steerTurn: (input: ProviderSteerTurnInput) => Effect.Effect<void, ProviderServiceError>;
 
   /**
    * Interrupt a running provider turn.

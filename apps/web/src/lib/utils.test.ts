@@ -30,10 +30,7 @@ describe("createUuid", () => {
     } satisfies Pick<Crypto, "getRandomValues">);
 
     const uuid = createUuid();
-    assert.match(
-      uuid,
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-    );
+    assert.match(uuid, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 
   it("falls back to Math.random when crypto is unavailable", () => {
@@ -42,10 +39,7 @@ describe("createUuid", () => {
 
     const uuid = createUuid();
 
-    assert.match(
-      uuid,
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-    );
+    assert.match(uuid, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     randomSpy.mockRestore();
   });
 });

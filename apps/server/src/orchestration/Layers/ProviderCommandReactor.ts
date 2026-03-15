@@ -519,7 +519,11 @@ const make = Effect.gen(function* () {
     if (!thread) {
       return;
     }
-    if (!thread.session || thread.session.status !== "running" || thread.session.activeTurnId === null) {
+    if (
+      !thread.session ||
+      thread.session.status !== "running" ||
+      thread.session.activeTurnId === null
+    ) {
       return yield* appendProviderFailureActivity({
         threadId: event.payload.threadId,
         kind: "provider.turn.steer.failed",
@@ -561,25 +565,27 @@ const make = Effect.gen(function* () {
       });
     }
 
-    yield* providerService.steerTurn({
-      threadId: event.payload.threadId,
-      turnId: event.payload.turnId,
-      input: message.text,
-    }).pipe(
-      Effect.catchCause((cause) =>
-        Effect.gen(function* () {
-          const error = Cause.squash(cause);
-          yield* appendProviderFailureActivity({
-            threadId: event.payload.threadId,
-            kind: "provider.turn.steer.failed",
-            summary: "Provider turn steer failed",
-            detail: toErrorMessage(error),
-            turnId: event.payload.turnId,
-            createdAt: event.payload.createdAt,
-          });
-        }),
-      ),
-    );
+    yield* providerService
+      .steerTurn({
+        threadId: event.payload.threadId,
+        turnId: event.payload.turnId,
+        input: message.text,
+      })
+      .pipe(
+        Effect.catchCause((cause) =>
+          Effect.gen(function* () {
+            const error = Cause.squash(cause);
+            yield* appendProviderFailureActivity({
+              threadId: event.payload.threadId,
+              kind: "provider.turn.steer.failed",
+              summary: "Provider turn steer failed",
+              detail: toErrorMessage(error),
+              turnId: event.payload.turnId,
+              createdAt: event.payload.createdAt,
+            });
+          }),
+        ),
+      );
   });
 
   const maybeDispatchQueuedFollowUp = Effect.fnUntraced(function* (threadId: ThreadId) {

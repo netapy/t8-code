@@ -426,6 +426,7 @@ const makeOrchestrationProjectionPipeline = Effect.gen(function* () {
             branch: event.payload.branch,
             worktreePath: event.payload.worktreePath,
             latestTurnId: null,
+            contextUsage: null,
             queuedFollowUps: [],
             createdAt: event.payload.createdAt,
             updatedAt: event.payload.updatedAt,
@@ -501,6 +502,7 @@ const makeOrchestrationProjectionPipeline = Effect.gen(function* () {
 
         case "thread.message-sent":
         case "thread.proposed-plan-upserted":
+        case "thread.context-usage-set":
         case "thread.follow-up-queued":
         case "thread.follow-up-removed":
         case "thread.activity-appended": {
@@ -529,6 +531,10 @@ const makeOrchestrationProjectionPipeline = Effect.gen(function* () {
                 : existingRow.value.queuedFollowUps;
           yield* projectionThreadRepository.upsert({
             ...existingRow.value,
+            contextUsage:
+              event.type === "thread.context-usage-set"
+                ? event.payload.contextUsage
+                : existingRow.value.contextUsage,
             queuedFollowUps: nextQueuedFollowUps,
             updatedAt: event.occurredAt,
           });

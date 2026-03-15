@@ -965,6 +965,22 @@ function mapToRuntimeEvents(
     ];
   }
 
+  if (event.method === "codex/event/token_count") {
+    const msg = codexEventMessage(payload) ?? payload;
+    if (!msg) {
+      return [];
+    }
+    return [
+      {
+        ...codexEventBase(event, canonicalThreadId),
+        type: "thread.token-usage.updated",
+        payload: {
+          usage: msg,
+        },
+      },
+    ];
+  }
+
   if (event.method === "codex/event/task_complete") {
     const msg = codexEventMessage(payload);
     const taskId = asString(payload?.id) ?? asString(msg?.turn_id);
