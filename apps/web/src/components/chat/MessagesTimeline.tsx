@@ -36,6 +36,7 @@ import { computeMessageDurationStart, normalizeCompactToolLabel } from "./Messag
 import { cn } from "~/lib/utils";
 import { type TimestampFormat } from "../../appSettings";
 import { formatTimestamp } from "../../timestampFormat";
+import { Spinner } from "../ui/spinner";
 
 const MAX_VISIBLE_WORK_LOG_ENTRIES = 6;
 const ALWAYS_UNVIRTUALIZED_TAIL_ROWS = 8;
@@ -522,12 +523,8 @@ export const MessagesTimeline = memo(function MessagesTimeline({
 
       {row.kind === "working" && (
         <div className="py-0.5 pl-1.5">
-          <div className="flex items-center gap-2 pt-1 text-[11px] text-muted-foreground/70">
-            <span className="inline-flex items-center gap-[3px]">
-              <span className="h-1 w-1 rounded-full bg-muted-foreground/30 animate-pulse" />
-              <span className="h-1 w-1 rounded-full bg-muted-foreground/30 animate-pulse [animation-delay:200ms]" />
-              <span className="h-1 w-1 rounded-full bg-muted-foreground/30 animate-pulse [animation-delay:400ms]" />
-            </span>
+          <div className="flex items-center gap-2 pt-1 text-[11px] text-muted-foreground/75">
+            <Spinner className="size-3 text-sky-500/80 dark:text-sky-300/80" />
             <span>
               {row.createdAt
                 ? `Working for ${formatWorkingTimer(row.createdAt, nowIso) ?? "0s"}`
