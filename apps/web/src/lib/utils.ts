@@ -14,6 +14,10 @@ export function isWindowsPlatform(platform: string): boolean {
   return /^win(dows)?/i.test(platform);
 }
 
+export function isLinuxPlatform(platform: string): boolean {
+  return /linux/i.test(platform);
+}
+
 function uuidFromRandomValues(): string {
   const bytes = new Uint8Array(16);
   globalThis.crypto.getRandomValues(bytes);
