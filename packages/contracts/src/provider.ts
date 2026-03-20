@@ -1,6 +1,8 @@
 import { Schema } from "effect";
 import { TrimmedNonEmptyString } from "./baseSchemas";
 import { ProviderModelOptions } from "./model";
+
+const TrimmedNonEmptyStringSchema = TrimmedNonEmptyString;
 import {
   ApprovalRequestId,
   EventId,
