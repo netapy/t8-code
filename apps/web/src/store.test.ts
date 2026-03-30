@@ -16,8 +16,10 @@ function makeThread(overrides: Partial<Thread> = {}): Thread {
     codexThreadId: null,
     projectId: ProjectId.makeUnsafe("project-1"),
     title: "Thread",
-    pinned: false,
-    model: "gpt-5-codex",
+    modelSelection: {
+      provider: "codex",
+      model: "gpt-5-codex",
+    },
     runtimeMode: DEFAULT_RUNTIME_MODE,
     interactionMode: DEFAULT_INTERACTION_MODE,
     session: null,
@@ -28,6 +30,7 @@ function makeThread(overrides: Partial<Thread> = {}): Thread {
     proposedPlans: [],
     error: null,
     createdAt: "2026-02-13T00:00:00.000Z",
+    archivedAt: null,
     latestTurn: null,
     branch: null,
     worktreePath: null,
@@ -42,7 +45,10 @@ function makeState(thread: Thread): AppState {
         id: ProjectId.makeUnsafe("project-1"),
         name: "Project",
         cwd: "/tmp/project",
-        model: "gpt-5-codex",
+        defaultModelSelection: {
+          provider: "codex",
+          model: "gpt-5-codex",
+        },
         expanded: true,
         scripts: [],
       },
@@ -57,8 +63,10 @@ function makeReadModelThread(overrides: Partial<OrchestrationReadModel["threads"
     id: ThreadId.makeUnsafe("thread-1"),
     projectId: ProjectId.makeUnsafe("project-1"),
     title: "Thread",
-    pinned: false,
-    model: "gpt-5.3-codex",
+    modelSelection: {
+      provider: "codex",
+      model: "gpt-5.3-codex",
+    },
     runtimeMode: DEFAULT_RUNTIME_MODE,
     interactionMode: DEFAULT_INTERACTION_MODE,
     branch: null,
@@ -66,6 +74,7 @@ function makeReadModelThread(overrides: Partial<OrchestrationReadModel["threads"
     latestTurn: null,
     createdAt: "2026-02-27T00:00:00.000Z",
     updatedAt: "2026-02-27T00:00:00.000Z",
+    archivedAt: null,
     deletedAt: null,
     messages: [],
     queuedFollowUps: [],
@@ -86,7 +95,10 @@ function makeReadModel(thread: OrchestrationReadModel["threads"][number]): Orche
         id: ProjectId.makeUnsafe("project-1"),
         title: "Project",
         workspaceRoot: "/tmp/project",
-        defaultModel: "gpt-5.3-codex",
+        defaultModelSelection: {
+          provider: "codex",
+          model: "gpt-5.3-codex",
+        },
         createdAt: "2026-02-27T00:00:00.000Z",
         updatedAt: "2026-02-27T00:00:00.000Z",
         deletedAt: null,
@@ -104,7 +116,10 @@ function makeReadModelProject(
     id: ProjectId.makeUnsafe("project-1"),
     title: "Project",
     workspaceRoot: "/tmp/project",
-    defaultModel: "gpt-5.3-codex",
+    defaultModelSelection: {
+      provider: "codex",
+      model: "gpt-5.3-codex",
+    },
     createdAt: "2026-02-27T00:00:00.000Z",
     updatedAt: "2026-02-27T00:00:00.000Z",
     deletedAt: null,
@@ -163,7 +178,10 @@ describe("store pure functions", () => {
           id: project1,
           name: "Project 1",
           cwd: "/tmp/project-1",
-          model: DEFAULT_MODEL_BY_PROVIDER.codex,
+          defaultModelSelection: {
+            provider: "codex",
+            model: DEFAULT_MODEL_BY_PROVIDER.codex,
+          },
           expanded: true,
           scripts: [],
         },
@@ -171,7 +189,10 @@ describe("store pure functions", () => {
           id: project2,
           name: "Project 2",
           cwd: "/tmp/project-2",
-          model: DEFAULT_MODEL_BY_PROVIDER.codex,
+          defaultModelSelection: {
+            provider: "codex",
+            model: DEFAULT_MODEL_BY_PROVIDER.codex,
+          },
           expanded: true,
           scripts: [],
         },
@@ -179,7 +200,10 @@ describe("store pure functions", () => {
           id: project3,
           name: "Project 3",
           cwd: "/tmp/project-3",
-          model: DEFAULT_MODEL_BY_PROVIDER.codex,
+          defaultModelSelection: {
+            provider: "codex",
+            model: DEFAULT_MODEL_BY_PROVIDER.codex,
+          },
           expanded: true,
           scripts: [],
         },
@@ -199,20 +223,26 @@ describe("store read model sync", () => {
     const initialState = makeState(makeThread());
     const readModel = makeReadModel(
       makeReadModelThread({
-        model: "claude-opus-4-6",
+        modelSelection: {
+          provider: "claudeAgent",
+          model: "claude-opus-4-6",
+        },
       }),
     );
 
     const next = syncServerReadModel(initialState, readModel);
 
-    expect(next.threads[0]?.model).toBe("claude-opus-4-6");
+    expect(next.threads[0]?.modelSelection.model).toBe("claude-opus-4-6");
   });
 
   it("resolves claude aliases when session provider is claudeAgent", () => {
     const initialState = makeState(makeThread());
     const readModel = makeReadModel(
       makeReadModelThread({
-        model: "sonnet",
+        modelSelection: {
+          provider: "claudeAgent",
+          model: "sonnet",
+        },
         session: {
           threadId: ThreadId.makeUnsafe("thread-1"),
           status: "ready",
@@ -227,7 +257,36 @@ describe("store read model sync", () => {
 
     const next = syncServerReadModel(initialState, readModel);
 
-    expect(next.threads[0]?.model).toBe("claude-sonnet-4-6");
+    expect(next.threads[0]?.modelSelection.model).toBe("claude-sonnet-4-6");
+  });
+
+  it("preserves project and thread updatedAt timestamps from the read model", () => {
+    const initialState = makeState(makeThread());
+    const readModel = makeReadModel(
+      makeReadModelThread({
+        updatedAt: "2026-02-27T00:05:00.000Z",
+      }),
+    );
+
+    const next = syncServerReadModel(initialState, readModel);
+
+    expect(next.projects[0]?.updatedAt).toBe("2026-02-27T00:00:00.000Z");
+    expect(next.threads[0]?.updatedAt).toBe("2026-02-27T00:05:00.000Z");
+  });
+
+  it("maps archivedAt from the read model", () => {
+    const initialState = makeState(makeThread());
+    const archivedAt = "2026-02-28T00:00:00.000Z";
+    const next = syncServerReadModel(
+      initialState,
+      makeReadModel(
+        makeReadModelThread({
+          archivedAt,
+        }),
+      ),
+    );
+
+    expect(next.threads[0]?.archivedAt).toBe(archivedAt);
   });
 
   it("preserves the current project order when syncing incoming read model updates", () => {
@@ -240,7 +299,10 @@ describe("store read model sync", () => {
           id: project2,
           name: "Project 2",
           cwd: "/tmp/project-2",
-          model: DEFAULT_MODEL_BY_PROVIDER.codex,
+          defaultModelSelection: {
+            provider: "codex",
+            model: DEFAULT_MODEL_BY_PROVIDER.codex,
+          },
           expanded: true,
           scripts: [],
         },
@@ -248,7 +310,10 @@ describe("store read model sync", () => {
           id: project1,
           name: "Project 1",
           cwd: "/tmp/project-1",
-          model: DEFAULT_MODEL_BY_PROVIDER.codex,
+          defaultModelSelection: {
+            provider: "codex",
+            model: DEFAULT_MODEL_BY_PROVIDER.codex,
+          },
           expanded: true,
           scripts: [],
         },
@@ -282,18 +347,5 @@ describe("store read model sync", () => {
     const next = syncServerReadModel(initialState, readModel);
 
     expect(next.projects.map((project) => project.id)).toEqual([project2, project1, project3]);
-  });
-
-  it("syncs pinned thread state from the server read model", () => {
-    const initialState = makeState(makeThread({ pinned: false }));
-    const readModel = makeReadModel(
-      makeReadModelThread({
-        pinned: true,
-      }),
-    );
-
-    const next = syncServerReadModel(initialState, readModel);
-
-    expect(next.threads[0]?.pinned).toBe(true);
   });
 });

@@ -300,7 +300,7 @@ async function ensureProject(input: {
       projectId,
       title,
       workspaceRoot: input.cwd,
-      defaultModel: DEFAULT_MODEL_BY_PROVIDER.codex,
+      defaultModelSelection: { provider: "codex", model: DEFAULT_MODEL_BY_PROVIDER.codex },
       createdAt,
     }),
   );
@@ -432,7 +432,7 @@ export async function importCodexConversations(
             threadId,
             projectId: project.id,
             title: sourceThread.title,
-            model: project.defaultModel ?? DEFAULT_MODEL_BY_PROVIDER.codex,
+            modelSelection: project.defaultModelSelection ?? { provider: "codex", model: DEFAULT_MODEL_BY_PROVIDER.codex },
             runtimeMode: DEFAULT_RUNTIME_MODE,
             interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
             branch: null,

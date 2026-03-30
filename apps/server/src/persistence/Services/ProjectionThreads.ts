@@ -8,8 +8,9 @@
  */
 import {
   IsoDateTime,
-  OrchestrationThreadContextUsage,
+  ModelSelection,
   OrchestrationQueuedFollowUp,
+  OrchestrationThreadContextUsage,
   ProjectId,
   ProviderInteractionMode,
   RuntimeMode,
@@ -25,8 +26,7 @@ export const ProjectionThread = Schema.Struct({
   threadId: ThreadId,
   projectId: ProjectId,
   title: Schema.String,
-  pinned: Schema.Boolean,
-  model: Schema.String,
+  modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
   branch: Schema.NullOr(Schema.String),
@@ -36,6 +36,7 @@ export const ProjectionThread = Schema.Struct({
   queuedFollowUps: Schema.Array(OrchestrationQueuedFollowUp),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
+  archivedAt: Schema.NullOr(IsoDateTime),
   deletedAt: Schema.NullOr(IsoDateTime),
 });
 export type ProjectionThread = typeof ProjectionThread.Type;

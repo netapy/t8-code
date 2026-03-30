@@ -2,7 +2,7 @@ import { EditorId, type ResolvedKeybindingsConfig } from "@t3tools/contracts";
 import { memo, useCallback, useEffect, useMemo } from "react";
 import { isOpenFavoriteEditorShortcut, shortcutLabelForCommand } from "../../keybindings";
 import { usePreferredEditor } from "../../editorPreferences";
-import { AppWindowIcon, ChevronDownIcon, FolderClosedIcon } from "lucide-react";
+import { ChevronDownIcon, FolderClosedIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import { Group, GroupSeparator } from "../ui/group";
 import { Menu, MenuItem, MenuPopup, MenuShortcut, MenuTrigger } from "../ui/menu";
@@ -23,6 +23,16 @@ const resolveOptions = (platform: string, availableEditors: ReadonlyArray<Editor
       value: "vscode",
     },
     {
+      label: "VS Code Insiders",
+      Icon: VisualStudioCode,
+      value: "vscode-insiders",
+    },
+    {
+      label: "VSCodium",
+      Icon: VisualStudioCode,
+      value: "vscodium",
+    },
+    {
       label: "Zed",
       Icon: Zed,
       value: "zed",
@@ -31,11 +41,6 @@ const resolveOptions = (platform: string, availableEditors: ReadonlyArray<Editor
       label: "Antigravity",
       Icon: AntigravityIcon,
       value: "antigravity",
-    },
-    {
-      label: "System Editor",
-      Icon: AppWindowIcon,
-      value: "system-editor",
     },
     {
       label: isMacPlatform(platform)
@@ -106,11 +111,11 @@ export const OpenInPicker = memo(function OpenInPicker({
         onClick={() => openInEditor(preferredEditor)}
       >
         {primaryOption?.Icon && <primaryOption.Icon aria-hidden="true" className="size-3.5" />}
-        <span className="sr-only @sm/header-actions:not-sr-only @sm/header-actions:ml-0.5">
+        <span className="sr-only @3xl/header-actions:not-sr-only @3xl/header-actions:ml-0.5">
           Open
         </span>
       </Button>
-      <GroupSeparator className="hidden @sm/header-actions:block" />
+      <GroupSeparator className="hidden @3xl/header-actions:block" />
       <Menu>
         <MenuTrigger render={<Button aria-label="Copy options" size="icon-xs" variant="outline" />}>
           <ChevronDownIcon aria-hidden="true" className="size-4" />

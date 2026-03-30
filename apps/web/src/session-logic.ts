@@ -460,7 +460,7 @@ export function deriveWorkLogEntries(
   turnId?: TurnId,
 ): WorkLogEntry[] {
   const ordered = [...activities].toSorted(compareActivitiesByOrder);
-  return ordered
+  const entries = ordered
     .filter((activity) => {
       const payload =
         activity.payload && typeof activity.payload === "object"
@@ -487,6 +487,7 @@ export function deriveWorkLogEntries(
       return extractWorkLogItemType(payload) === "context_compaction";
     })
     .filter((activity) => activity.kind !== "task.started" && activity.kind !== "task.completed")
+    .filter((activity) => activity.kind !== "context-window.updated")
     .filter((activity) => activity.summary !== "Checkpoint captured")
     .filter((activity) => !isPlanBoundaryToolActivity(activity))
     .map(toDerivedWorkLogEntry);

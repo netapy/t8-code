@@ -59,7 +59,7 @@ describe("decider project scripts", () => {
           projectId: asProjectId("project-scripts"),
           title: "Scripts",
           workspaceRoot: "/tmp/scripts",
-          defaultModel: null,
+          defaultModelSelection: null,
           scripts: [],
           createdAt: now,
           updatedAt: now,
@@ -113,7 +113,7 @@ describe("decider project scripts", () => {
           projectId: asProjectId("project-1"),
           title: "Project",
           workspaceRoot: "/tmp/project",
-          defaultModel: null,
+          defaultModelSelection: null,
           scripts: [],
           createdAt: now,
           updatedAt: now,
@@ -136,8 +136,10 @@ describe("decider project scripts", () => {
           threadId: ThreadId.makeUnsafe("thread-1"),
           projectId: asProjectId("project-1"),
           title: "Thread",
-          pinned: false,
-          model: "gpt-5-codex",
+          modelSelection: {
+            provider: "codex",
+            model: "gpt-5-codex",
+          },
           interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
           runtimeMode: "approval-required",
           branch: null,
@@ -160,10 +162,10 @@ describe("decider project scripts", () => {
             text: "hello",
             attachments: [],
           },
-          provider: "codex",
-          model: "gpt-5.3-codex",
-          modelOptions: {
-            codex: {
+          modelSelection: {
+            provider: "codex",
+            model: "gpt-5.3-codex",
+            options: {
               reasoningEffort: "high",
               fastMode: true,
             },
@@ -186,14 +188,13 @@ describe("decider project scripts", () => {
     if (turnStartEvent?.type !== "thread.turn-start-requested") {
       return;
     }
-    expect(turnStartEvent.payload.assistantDeliveryMode).toBe("buffered");
     expect(turnStartEvent.payload).toMatchObject({
       threadId: ThreadId.makeUnsafe("thread-1"),
       messageId: asMessageId("message-user-1"),
-      provider: "codex",
-      model: "gpt-5.3-codex",
-      modelOptions: {
-        codex: {
+      modelSelection: {
+        provider: "codex",
+        model: "gpt-5.3-codex",
+        options: {
           reasoningEffort: "high",
           fastMode: true,
         },
@@ -221,7 +222,7 @@ describe("decider project scripts", () => {
           projectId: asProjectId("project-1"),
           title: "Project",
           workspaceRoot: "/tmp/project",
-          defaultModel: null,
+          defaultModelSelection: null,
           scripts: [],
           createdAt: now,
           updatedAt: now,
@@ -244,8 +245,10 @@ describe("decider project scripts", () => {
           threadId: ThreadId.makeUnsafe("thread-1"),
           projectId: asProjectId("project-1"),
           title: "Thread",
-          pinned: false,
-          model: "gpt-5-codex",
+          modelSelection: {
+            provider: "codex",
+            model: "gpt-5-codex",
+          },
           interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
           runtimeMode: "full-access",
           branch: null,
@@ -301,7 +304,7 @@ describe("decider project scripts", () => {
           projectId: asProjectId("project-1"),
           title: "Project",
           workspaceRoot: "/tmp/project",
-          defaultModel: null,
+          defaultModelSelection: null,
           scripts: [],
           createdAt: now,
           updatedAt: now,
@@ -324,8 +327,10 @@ describe("decider project scripts", () => {
           threadId: ThreadId.makeUnsafe("thread-1"),
           projectId: asProjectId("project-1"),
           title: "Thread",
-          pinned: false,
-          model: "gpt-5-codex",
+          modelSelection: {
+            provider: "codex",
+            model: "gpt-5-codex",
+          },
           interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
           runtimeMode: "approval-required",
           branch: null,

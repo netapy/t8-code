@@ -40,6 +40,24 @@ it.layer(NodeServices.layer)("resolveEditorLaunch", (it) => {
         args: ["/tmp/workspace"],
       });
 
+      const vscodeInsidersLaunch = yield* resolveEditorLaunch(
+        { cwd: "/tmp/workspace", editor: "vscode-insiders" },
+        "darwin",
+      );
+      assert.deepEqual(vscodeInsidersLaunch, {
+        command: "code-insiders",
+        args: ["/tmp/workspace"],
+      });
+
+      const vscodiumLaunch = yield* resolveEditorLaunch(
+        { cwd: "/tmp/workspace", editor: "vscodium" },
+        "darwin",
+      );
+      assert.deepEqual(vscodiumLaunch, {
+        command: "codium",
+        args: ["/tmp/workspace"],
+      });
+
       const zedLaunch = yield* resolveEditorLaunch(
         { cwd: "/tmp/workspace", editor: "zed" },
         "darwin",
@@ -77,6 +95,24 @@ it.layer(NodeServices.layer)("resolveEditorLaunch", (it) => {
       );
       assert.deepEqual(vscodeLineAndColumn, {
         command: "code",
+        args: ["--goto", "/tmp/workspace/src/open.ts:71:5"],
+      });
+
+      const vscodeInsidersLineAndColumn = yield* resolveEditorLaunch(
+        { cwd: "/tmp/workspace/src/open.ts:71:5", editor: "vscode-insiders" },
+        "darwin",
+      );
+      assert.deepEqual(vscodeInsidersLineAndColumn, {
+        command: "code-insiders",
+        args: ["--goto", "/tmp/workspace/src/open.ts:71:5"],
+      });
+
+      const vscodiumLineAndColumn = yield* resolveEditorLaunch(
+        { cwd: "/tmp/workspace/src/open.ts:71:5", editor: "vscodium" },
+        "darwin",
+      );
+      assert.deepEqual(vscodiumLineAndColumn, {
+        command: "codium",
         args: ["--goto", "/tmp/workspace/src/open.ts:71:5"],
       });
 
@@ -118,50 +154,6 @@ it.layer(NodeServices.layer)("resolveEditorLaunch", (it) => {
       assert.deepEqual(launch3, {
         command: "xdg-open",
         args: ["/tmp/workspace"],
-      });
-    }),
-  );
-
-  it.effect("uses VISUAL before EDITOR for system-editor launches", () =>
-    Effect.gen(function* () {
-      const launch = yield* resolveEditorLaunch(
-        { cwd: "/tmp/workspace", editor: "system-editor" },
-        "darwin",
-        { VISUAL: "my-editor --wait", EDITOR: "fallback-editor" },
-      );
-      assert.deepEqual(launch, {
-        command: "my-editor",
-        args: ["--wait", "/tmp/workspace"],
-      });
-    }),
-  );
-
-  it.effect("reuses known editor goto behavior for system-editor launches", () =>
-    Effect.gen(function* () {
-      const launch = yield* resolveEditorLaunch(
-        { cwd: "/tmp/workspace/src/open.ts:71:5", editor: "system-editor" },
-        "darwin",
-        { EDITOR: "code --wait" },
-      );
-      assert.deepEqual(launch, {
-        command: "code",
-        args: ["--wait", "--goto", "/tmp/workspace/src/open.ts:71:5"],
-      });
-    }),
-  );
-
-  it.effect("preserves quoted executable paths for system-editor launches", () =>
-    Effect.gen(function* () {
-      const launch = yield* resolveEditorLaunch(
-        { cwd: "C:\\workspace\\src\\open.ts:71:5", editor: "system-editor" },
-        "win32",
-        {
-          EDITOR: '"C:\\Program Files\\Microsoft VS Code\\Code.exe" --wait',
-        },
-      );
-      assert.deepEqual(launch, {
-        command: "C:\\Program Files\\Microsoft VS Code\\Code.exe",
-        args: ["--wait", "--goto", "C:\\workspace\\src\\open.ts:71:5"],
       });
     }),
   );
@@ -264,32 +256,14 @@ it.layer(NodeServices.layer)("resolveAvailableEditors", (it) => {
       const path = yield* Path.Path;
       const dir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-editors-" });
 
-      yield* fs.writeFileString(path.join(dir, "cursor.CMD"), "@echo off\r\n");
+      yield* fs.writeFileString(path.join(dir, "code-insiders.CMD"), "@echo off\r\n");
+      yield* fs.writeFileString(path.join(dir, "codium.CMD"), "@echo off\r\n");
       yield* fs.writeFileString(path.join(dir, "explorer.CMD"), "MZ");
       const editors = resolveAvailableEditors("win32", {
         PATH: dir,
         PATHEXT: ".COM;.EXE;.BAT;.CMD",
       });
-      assert.deepEqual(editors, ["cursor", "file-manager"]);
+      assert.deepEqual(editors, ["vscode-insiders", "vscodium", "file-manager"]);
     }),
-  );
-
-  it.effect(
-    "includes system-editor when EDITOR resolves to an available quoted path with flags",
-    () =>
-      Effect.gen(function* () {
-        const fs = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const dir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-editors-" });
-        const commandPath = path.join(dir, "Code Editor.CMD");
-
-        yield* fs.writeFileString(commandPath, "@echo off\r\n");
-        const editors = resolveAvailableEditors("win32", {
-          PATH: "",
-          PATHEXT: ".COM;.EXE;.BAT;.CMD",
-          EDITOR: `"${commandPath}" --wait`,
-        });
-        assert.deepEqual(editors, ["system-editor"]);
-      }),
   );
 });

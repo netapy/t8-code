@@ -9,13 +9,11 @@
  */
 import type {
   ApprovalRequestId,
-  ProviderCompactThreadInput,
   ProviderApprovalDecision,
   ProviderKind,
   ProviderUserInputAnswers,
   ProviderRuntimeEvent,
   ProviderSendTurnInput,
-  ProviderSteerTurnInput,
   ProviderSession,
   ProviderSessionStartInput,
   ThreadId,
@@ -66,19 +64,9 @@ export interface ProviderAdapterShape<TError> {
   ) => Effect.Effect<ProviderTurnStartResult, TError>;
 
   /**
-   * Steer an already running turn.
-   */
-  readonly steerTurn: (input: ProviderSteerTurnInput) => Effect.Effect<void, TError>;
-
-  /**
    * Interrupt an active turn.
    */
   readonly interruptTurn: (threadId: ThreadId, turnId?: TurnId) => Effect.Effect<void, TError>;
-
-  /**
-   * Compact a provider thread context.
-   */
-  readonly compactThread: (input: ProviderCompactThreadInput) => Effect.Effect<void, TError>;
 
   /**
    * Respond to an interactive approval request.

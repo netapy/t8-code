@@ -6,7 +6,7 @@ import {
 } from "@t3tools/contracts";
 import { memo } from "react";
 import GitActionsControl from "../GitActionsControl";
-import { DiffIcon, TerminalSquare } from "lucide-react";
+import { DiffIcon, TerminalSquareIcon } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import ProjectScriptsControl, { type NewProjectScriptInput } from "../ProjectScriptsControl";
@@ -36,11 +36,12 @@ interface ChatHeaderProps {
   preferredScriptId: string | null;
   keybindings: ResolvedKeybindingsConfig;
   availableEditors: ReadonlyArray<EditorId>;
-  diffToggleShortcutLabel: string | null;
+  terminalAvailable: boolean;
+  terminalOpen: boolean;
   terminalToggleShortcutLabel: string | null;
+  diffToggleShortcutLabel: string | null;
   gitCwd: string | null;
   diffOpen: boolean;
-  terminalOpen: boolean;
   onRunProjectScript: (script: ProjectScript) => void;
   onAddProjectScript: (input: NewProjectScriptInput) => Promise<void>;
   onUpdateProjectScript: (scriptId: string, input: NewProjectScriptInput) => Promise<void>;
@@ -60,11 +61,12 @@ export const ChatHeader = memo(function ChatHeader({
   preferredScriptId,
   keybindings,
   availableEditors,
-  diffToggleShortcutLabel,
+  terminalAvailable,
+  terminalOpen,
   terminalToggleShortcutLabel,
+  diffToggleShortcutLabel,
   gitCwd,
   diffOpen,
-  terminalOpen,
   onRunProjectScript,
   onAddProjectScript,
   onUpdateProjectScript,
@@ -98,7 +100,7 @@ export const ChatHeader = memo(function ChatHeader({
       : `${normalizedContextUsage.totalTokens.toLocaleString()} used of ${normalizedContextUsage.modelContextWindow.toLocaleString()} tokens`;
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-2">
+    <div className="@container/header-actions flex min-w-0 flex-1 items-center gap-2">
       <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden sm:gap-3">
         <SidebarTrigger className="size-7 shrink-0 md:hidden" />
         <h2
@@ -108,8 +110,8 @@ export const ChatHeader = memo(function ChatHeader({
           {activeThreadTitle}
         </h2>
         {activeProjectName && (
-          <Badge variant="outline" className="min-w-0 shrink truncate">
-            {activeProjectName}
+          <Badge variant="outline" className="min-w-0 shrink overflow-hidden">
+            <span className="min-w-0 truncate">{activeProjectName}</span>
           </Badge>
         )}
         {contextUsageLabel && (
@@ -130,7 +132,7 @@ export const ChatHeader = memo(function ChatHeader({
           </Badge>
         )}
       </div>
-      <div className="@container/header-actions flex min-w-0 flex-1 items-center justify-end gap-2 @sm/header-actions:gap-3">
+      <div className="flex shrink-0 items-center justify-end gap-2 @3xl/header-actions:gap-3">
         {activeProjectScripts && (
           <ProjectScriptsControl
             scripts={activeProjectScripts}
@@ -157,18 +159,21 @@ export const ChatHeader = memo(function ChatHeader({
                 className="shrink-0"
                 pressed={terminalOpen}
                 onPressedChange={onToggleTerminal}
-                aria-label="Toggle terminal"
+                aria-label="Toggle terminal drawer"
                 variant="outline"
                 size="xs"
+                disabled={!terminalAvailable}
               >
-                <TerminalSquare className="size-3" />
+                <TerminalSquareIcon className="size-3" />
               </Toggle>
             }
           />
           <TooltipPopup side="bottom">
-            {terminalToggleShortcutLabel
-              ? `Toggle terminal (${terminalToggleShortcutLabel})`
-              : "Toggle terminal"}
+            {!terminalAvailable
+              ? "Terminal is unavailable until this thread has an active project."
+              : terminalToggleShortcutLabel
+                ? `Toggle terminal drawer (${terminalToggleShortcutLabel})`
+                : "Toggle terminal drawer"}
           </TooltipPopup>
         </Tooltip>
         <Tooltip>

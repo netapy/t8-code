@@ -1,9 +1,11 @@
 import {
+  type GitActionProgressEvent,
   ORCHESTRATION_WS_CHANNELS,
   ORCHESTRATION_WS_METHODS,
   type ContextMenuItem,
   type NativeApi,
   ServerConfigUpdatedPayload,
+  ServerProviderUpdatedPayload,
   WS_CHANNELS,
   WS_METHODS,
   type WsWelcomePayload,
@@ -39,8 +41,8 @@ export interface RateLimitsPayload {
 let instance: { api: NativeApi; transport: WsTransport } | null = null;
 const welcomeListeners = new Set<(payload: WsWelcomePayload) => void>();
 const serverConfigUpdatedListeners = new Set<(payload: ServerConfigUpdatedPayload) => void>();
-const rateLimitsListeners = new Set<(payload: RateLimitsPayload) => void>();
-let lastRateLimits: RateLimitsPayload | null = null;
+const providersUpdatedListeners = new Set<(payload: ServerProviderUpdatedPayload) => void>();
+const gitActionProgressListeners = new Set<(payload: GitActionProgressEvent) => void>();
 
 /**
  * Subscribe to the server welcome message. If a welcome was already received
@@ -88,23 +90,23 @@ export function onServerConfigUpdated(
   };
 }
 
-export function onRateLimitsUpdated(listener: (payload: RateLimitsPayload) => void): () => void {
-  rateLimitsListeners.add(listener);
+export function onServerProvidersUpdated(
+  listener: (payload: ServerProviderUpdatedPayload) => void,
+): () => void {
+  providersUpdatedListeners.add(listener);
 
-  const latestRateLimits =
-    lastRateLimits ??
-    ((instance?.transport.getLatestPush(WS_CHANNELS.providerRateLimitsUpdated)?.data ??
-      null) as RateLimitsPayload | null);
-  if (latestRateLimits) {
+  const latestProviders =
+    instance?.transport.getLatestPush(WS_CHANNELS.serverProvidersUpdated)?.data ?? null;
+  if (latestProviders) {
     try {
-      listener(latestRateLimits);
+      listener(latestProviders);
     } catch {
       // Swallow listener errors
     }
   }
 
   return () => {
-    rateLimitsListeners.delete(listener);
+    providersUpdatedListeners.delete(listener);
   };
 }
 
@@ -133,11 +135,19 @@ export function createWsNativeApi(): NativeApi {
       }
     }
   });
-  transport.subscribe(WS_CHANNELS.providerRateLimitsUpdated, (message) => {
-    const payload = message.data as RateLimitsPayload;
-    if (!payload || typeof payload !== "object") return;
-    lastRateLimits = payload;
-    for (const listener of rateLimitsListeners) {
+  transport.subscribe(WS_CHANNELS.serverProvidersUpdated, (message) => {
+    const payload = message.data;
+    for (const listener of providersUpdatedListeners) {
+      try {
+        listener(payload);
+      } catch {
+        // Swallow listener errors
+      }
+    }
+  });
+  transport.subscribe(WS_CHANNELS.gitActionProgress, (message) => {
+    const payload = message.data;
+    for (const listener of gitActionProgressListeners) {
       try {
         listener(payload);
       } catch {
@@ -193,7 +203,8 @@ export function createWsNativeApi(): NativeApi {
     git: {
       pull: (input) => transport.request(WS_METHODS.gitPull, input),
       status: (input) => transport.request(WS_METHODS.gitStatus, input),
-      runStackedAction: (input) => transport.request(WS_METHODS.gitRunStackedAction, input),
+      runStackedAction: (input) =>
+        transport.request(WS_METHODS.gitRunStackedAction, input, { timeoutMs: null }),
       listBranches: (input) => transport.request(WS_METHODS.gitListBranches, input),
       createWorktree: (input) => transport.request(WS_METHODS.gitCreateWorktree, input),
       removeWorktree: (input) => transport.request(WS_METHODS.gitRemoveWorktree, input),
@@ -203,6 +214,12 @@ export function createWsNativeApi(): NativeApi {
       resolvePullRequest: (input) => transport.request(WS_METHODS.gitResolvePullRequest, input),
       preparePullRequestThread: (input) =>
         transport.request(WS_METHODS.gitPreparePullRequestThread, input),
+      onActionProgress: (callback) => {
+        gitActionProgressListeners.add(callback);
+        return () => {
+          gitActionProgressListeners.delete(callback);
+        };
+      },
     },
     contextMenu: {
       show: async <T extends string>(
@@ -217,9 +234,10 @@ export function createWsNativeApi(): NativeApi {
     },
     server: {
       getConfig: () => transport.request(WS_METHODS.serverGetConfig),
+      refreshProviders: () => transport.request(WS_METHODS.serverRefreshProviders),
       upsertKeybinding: (input) => transport.request(WS_METHODS.serverUpsertKeybinding, input),
-      importCodexConversations: (input = {}) =>
-        transport.request(WS_METHODS.serverImportCodexConversations, input),
+      getSettings: () => transport.request(WS_METHODS.serverGetSettings),
+      updateSettings: (patch) => transport.request(WS_METHODS.serverUpdateSettings, { patch }),
     },
     orchestration: {
       getSnapshot: () => transport.request(ORCHESTRATION_WS_METHODS.getSnapshot),

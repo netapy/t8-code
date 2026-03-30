@@ -13,13 +13,11 @@
  */
 import type {
   ProviderInterruptTurnInput,
-  ProviderCompactThreadInput,
   ProviderKind,
   ProviderRespondToRequestInput,
   ProviderRespondToUserInputInput,
   ProviderRuntimeEvent,
   ProviderSendTurnInput,
-  ProviderSteerTurnInput,
   ProviderSession,
   ProviderSessionStartInput,
   ProviderStopSessionInput,
@@ -52,22 +50,10 @@ export interface ProviderServiceShape {
   ) => Effect.Effect<ProviderTurnStartResult, ProviderServiceError>;
 
   /**
-   * Steer an already running provider turn.
-   */
-  readonly steerTurn: (input: ProviderSteerTurnInput) => Effect.Effect<void, ProviderServiceError>;
-
-  /**
    * Interrupt a running provider turn.
    */
   readonly interruptTurn: (
     input: ProviderInterruptTurnInput,
-  ) => Effect.Effect<void, ProviderServiceError>;
-
-  /**
-   * Compact the current provider thread context.
-   */
-  readonly compactThread: (
-    input: ProviderCompactThreadInput,
   ) => Effect.Effect<void, ProviderServiceError>;
 
   /**

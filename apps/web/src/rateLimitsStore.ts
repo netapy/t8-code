@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { onRateLimitsUpdated, type RateLimitsPayload } from "./wsNativeApi";
+import type { RateLimitsPayload } from "./wsNativeApi";
 
 let snapshot: RateLimitsPayload | null = null;
 let listeners: Array<() => void> = [];
@@ -10,18 +10,12 @@ function emitChange(): void {
   }
 }
 
-let unsubWs: (() => void) | null = null;
-
-function ensureSubscription(): void {
-  if (unsubWs) return;
-  unsubWs = onRateLimitsUpdated((payload) => {
-    snapshot = payload;
-    emitChange();
-  });
+export function pushRateLimitsUpdate(payload: RateLimitsPayload): void {
+  snapshot = payload;
+  emitChange();
 }
 
 function subscribe(listener: () => void): () => void {
-  ensureSubscription();
   listeners.push(listener);
   return () => {
     listeners = listeners.filter((entry) => entry !== listener);
