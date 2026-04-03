@@ -72,7 +72,7 @@ function sameId(left: string | null | undefined, right: string | null | undefine
   return left === right;
 }
 
-function truncateDetail(value: string, limit = 180): string {
+function truncateDetail(value: string, limit = 2000): string {
   return value.length > limit ? `${value.slice(0, limit - 3)}...` : value;
 }
 
@@ -551,6 +551,7 @@ function runtimeEventToActivities(
           payload: {
             itemType: event.payload.itemType,
             ...(event.payload.detail ? { detail: truncateDetail(event.payload.detail) } : {}),
+            ...(event.payload.data !== undefined ? { data: event.payload.data } : {}),
           },
           turnId: toTurnId(event.turnId) ?? null,
           ...maybeSequence,
@@ -575,6 +576,7 @@ function runtimeEventToActivities(
           payload: {
             itemType: event.payload.itemType,
             ...(event.payload.detail ? { detail: truncateDetail(event.payload.detail) } : {}),
+            ...(event.payload.data !== undefined ? { data: event.payload.data } : {}),
           },
           turnId: toTurnId(event.turnId) ?? null,
           ...maybeSequence,

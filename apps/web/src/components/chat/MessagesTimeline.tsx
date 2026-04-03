@@ -842,6 +842,7 @@ const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: {
   workEntry: TimelineWorkEntry;
 }) {
   const { workEntry } = props;
+  const [expanded, setExpanded] = useState(false);
   const iconConfig = workToneIcon(workEntry.tone);
   const EntryIcon = workEntryIcon(workEntry);
   const heading = toolWorkEntryHeading(workEntry);
@@ -849,9 +850,13 @@ const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: {
   const displayText = preview ? `${heading} - ${preview}` : heading;
   const hasChangedFiles = (workEntry.changedFiles?.length ?? 0) > 0;
   const previewIsChangedFiles = hasChangedFiles && !workEntry.command && !workEntry.detail;
+  const hasExpandableDetail = !!(workEntry.detail && workEntry.detail.length > 60);
 
   return (
-    <div className="rounded-lg px-1 py-1">
+    <div
+      className={cn("rounded-lg px-1 py-1", hasExpandableDetail && "cursor-pointer hover:bg-muted/40")}
+      onClick={hasExpandableDetail ? () => setExpanded((prev) => !prev) : undefined}
+    >
       <div className="flex items-center gap-2 transition-[opacity,translate] duration-200">
         <span
           className={cn("flex size-5 shrink-0 items-center justify-center", iconConfig.className)}
@@ -870,10 +875,15 @@ const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: {
             <span className={cn("text-foreground/80", workToneClass(workEntry.tone))}>
               {heading}
             </span>
-            {preview && <span className="text-muted-foreground/55"> - {preview}</span>}
+            {preview && !expanded && <span className="text-muted-foreground/55"> - {preview}</span>}
           </p>
         </div>
       </div>
+      {expanded && workEntry.detail && (
+        <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted/30 px-2 py-1.5 pl-7 font-mono text-[10px] leading-4 text-muted-foreground/80">
+          {workEntry.detail}
+        </pre>
+      )}
       {hasChangedFiles && !previewIsChangedFiles && (
         <div className="mt-1 flex flex-wrap gap-1 pl-6">
           {workEntry.changedFiles?.slice(0, 4).map((filePath) => (
