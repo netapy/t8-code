@@ -11,11 +11,13 @@ import {
   ProjectionThreadRepository,
   type ProjectionThreadRepositoryShape,
 } from "../Services/ProjectionThreads.ts";
-import { ModelSelection } from "@t3tools/contracts";
+import { ModelSelection, OrchestrationThreadContextUsage, OrchestrationQueuedFollowUp } from "@t3tools/contracts";
 
 const ProjectionThreadDbRow = ProjectionThread.mapFields(
   Struct.assign({
     modelSelection: Schema.fromJsonString(ModelSelection),
+    contextUsage: Schema.fromJsonString(Schema.NullOr(OrchestrationThreadContextUsage)),
+    queuedFollowUps: Schema.fromJsonString(Schema.Array(OrchestrationQueuedFollowUp)),
   }),
 );
 type ProjectionThreadDbRow = typeof ProjectionThreadDbRow.Type;
@@ -48,7 +50,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           ${row.threadId},
           ${row.projectId},
           ${row.title},
-          ${JSON.stringify(row.modelSelection)},
+          ${row.modelSelection},
           ${row.runtimeMode},
           ${row.interactionMode},
           ${row.branch},
