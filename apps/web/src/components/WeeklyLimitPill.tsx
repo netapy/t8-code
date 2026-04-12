@@ -1,7 +1,6 @@
 import { ChevronUpIcon } from "lucide-react";
 import { memo, useMemo, useState } from "react";
-import type { RateLimitWindow } from "../wsNativeApi";
-import { useRateLimits } from "../rateLimitsStore";
+import { type RateLimitWindow, useRateLimits } from "../rateLimitsStore";
 import { OpenAI } from "./Icons";
 
 function formatResetsAt(resetsAt: number | undefined): string | null {

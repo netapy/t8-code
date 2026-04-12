@@ -35,6 +35,9 @@ import Migration0019 from "./Migrations/019_CanonicalizeModelSelections.ts";
 import Migration0020 from "./Migrations/020_ProjectionThreadsArchivedAt.ts";
 import Migration0021 from "./Migrations/021_ProjectionThreadsArchivedAtIndex.ts";
 import Migration0022 from "./Migrations/022_ProjectionSnapshotLookupIndexes.ts";
+import Migration0023 from "./Migrations/023_AuthAccessManagement.ts";
+import Migration0024 from "./Migrations/024_AuthSessionClientMetadata.ts";
+import Migration0025 from "./Migrations/025_AuthSessionLastConnectedAt.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -69,6 +72,9 @@ export const migrationEntries = [
   [20, "ProjectionThreadsArchivedAt", Migration0020],
   [21, "ProjectionThreadsArchivedAtIndex", Migration0021],
   [22, "ProjectionSnapshotLookupIndexes", Migration0022],
+  [23, "AuthAccessManagement", Migration0023],
+  [24, "AuthSessionClientMetadata", Migration0024],
+  [25, "AuthSessionLastConnectedAt", Migration0025],
 ] as const;
 
 export const makeMigrationLoader = (throughId?: number) =>

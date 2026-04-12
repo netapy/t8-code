@@ -1,5 +1,17 @@
 import { useSyncExternalStore } from "react";
-import type { RateLimitsPayload } from "./wsNativeApi";
+
+export interface RateLimitWindow {
+  windowDurationMins?: number;
+  resetsAt?: number;
+  usedPercent?: number;
+}
+
+export interface RateLimitsPayload {
+  rateLimits?: {
+    primary?: RateLimitWindow | null;
+    secondary?: RateLimitWindow | null;
+  };
+}
 
 let snapshot: RateLimitsPayload | null = null;
 let listeners: Array<() => void> = [];

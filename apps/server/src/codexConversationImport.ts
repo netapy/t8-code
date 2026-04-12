@@ -60,15 +60,15 @@ const IMPORT_COMMAND_PREFIX = "server:codex-import:";
 const MAX_IMPORTED_TITLE_CHARS = 120;
 
 function newServerCommandId(): CommandId {
-  return CommandId.makeUnsafe(`${IMPORT_COMMAND_PREFIX}${crypto.randomUUID()}`);
+  return CommandId.make(`${IMPORT_COMMAND_PREFIX}${crypto.randomUUID()}`);
 }
 
 function importedThreadIdForSource(sourceThreadId: string): ThreadId {
-  return ThreadId.makeUnsafe(`${IMPORT_THREAD_PREFIX}${sourceThreadId}`);
+  return ThreadId.make(`${IMPORT_THREAD_PREFIX}${sourceThreadId}`);
 }
 
 function importedMessageIdForSource(sourceThreadId: string, index: number): MessageId {
-  return MessageId.makeUnsafe(`${IMPORT_MESSAGE_PREFIX}${sourceThreadId}:${index}`);
+  return MessageId.make(`${IMPORT_MESSAGE_PREFIX}${sourceThreadId}:${index}`);
 }
 
 function importedMessagePrefixForSource(sourceThreadId: string): string {
@@ -292,7 +292,7 @@ async function ensureProject(input: {
 
   const title = path.basename(input.cwd) || "project";
   const createdAt = new Date().toISOString();
-  const projectId = ProjectId.makeUnsafe(crypto.randomUUID());
+  const projectId = ProjectId.make(crypto.randomUUID());
   await Effect.runPromise(
     input.orchestrationEngine.dispatch({
       type: "project.create",
@@ -432,7 +432,10 @@ export async function importCodexConversations(
             threadId,
             projectId: project.id,
             title: sourceThread.title,
-            modelSelection: project.defaultModelSelection ?? { provider: "codex", model: DEFAULT_MODEL_BY_PROVIDER.codex },
+            modelSelection: project.defaultModelSelection ?? {
+              provider: "codex",
+              model: DEFAULT_MODEL_BY_PROVIDER.codex,
+            },
             runtimeMode: DEFAULT_RUNTIME_MODE,
             interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
             branch: null,

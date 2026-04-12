@@ -44,11 +44,12 @@ export function useCopyToClipboard<TContext = void>({
           }, timeoutRef.current);
         }
       },
-      (error) => {
+      (error: unknown) => {
+        const normalizedError = error instanceof Error ? error : new Error(String(error));
         if (onErrorRef.current) {
-          onErrorRef.current(error, ctx);
+          onErrorRef.current(normalizedError, ctx);
         } else {
-          console.error(error);
+          console.error(normalizedError);
         }
       },
     );

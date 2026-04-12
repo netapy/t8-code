@@ -1,7 +1,7 @@
 import { CommandId, MessageId, ProjectId, ThreadId } from "@t3tools/contracts";
-import { String, Predicate } from "effect";
 import { type CxOptions, cx } from "class-variance-authority";
 import { twMerge } from "tailwind-merge";
+import { DraftId } from "../composerDraftStore";
 
 export function cn(...inputs: CxOptions) {
   return twMerge(cx(inputs));
@@ -17,6 +17,40 @@ export function isWindowsPlatform(platform: string): boolean {
 
 export function isLinuxPlatform(platform: string): boolean {
   return /linux/i.test(platform);
+}
+
+export async function copyTextToClipboard(text: string): Promise<void> {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall back to document.execCommand when clipboard permissions are unavailable.
+    }
+  }
+
+  if (typeof document === "undefined") {
+    throw new Error("Clipboard API unavailable.");
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.top = "0";
+  textarea.style.left = "-9999px";
+  textarea.style.opacity = "0";
+
+  document.body.append(textarea);
+  textarea.focus();
+  textarea.select();
+
+  const copied = document.execCommand("copy");
+  textarea.remove();
+
+  if (!copied) {
+    throw new Error("Failed to copy text to clipboard.");
+  }
 }
 
 function uuidFromRandomValues(): string {
@@ -59,48 +93,12 @@ export function createUuid(): string {
   return randomUUID();
 }
 
-export const newCommandId = (): CommandId => CommandId.makeUnsafe(randomUUID());
+export const newCommandId = (): CommandId => CommandId.make(randomUUID());
 
-export const newProjectId = (): ProjectId => ProjectId.makeUnsafe(randomUUID());
+export const newProjectId = (): ProjectId => ProjectId.make(randomUUID());
 
-export const newThreadId = (): ThreadId => ThreadId.makeUnsafe(randomUUID());
+export const newThreadId = (): ThreadId => ThreadId.make(randomUUID());
 
-export const newMessageId = (): MessageId => MessageId.makeUnsafe(randomUUID());
+export const newDraftId = (): DraftId => DraftId.make(randomUUID());
 
-const isNonEmptyString = Predicate.compose(Predicate.isString, String.isNonEmpty);
-const firstNonEmptyString = (...values: unknown[]): string => {
-  for (const value of values) {
-    if (isNonEmptyString(value)) {
-      return value;
-    }
-  }
-  throw new Error("No non-empty string provided");
-};
-
-export const resolveServerUrl = (options?: {
-  url?: string | undefined;
-  protocol?: "http" | "https" | "ws" | "wss" | undefined;
-  pathname?: string | undefined;
-  searchParams?: Record<string, string> | undefined;
-}): string => {
-  const rawUrl = firstNonEmptyString(
-    options?.url,
-    window.desktopBridge?.getWsUrl(),
-    import.meta.env.VITE_WS_URL,
-    window.location.origin,
-  );
-
-  const parsedUrl = new URL(rawUrl);
-  if (options?.protocol) {
-    parsedUrl.protocol = options.protocol;
-  }
-  if (options?.pathname) {
-    parsedUrl.pathname = options.pathname;
-  } else {
-    parsedUrl.pathname = "/";
-  }
-  if (options?.searchParams) {
-    parsedUrl.search = new URLSearchParams(options.searchParams).toString();
-  }
-  return parsedUrl.toString();
-};
+export const newMessageId = (): MessageId => MessageId.make(randomUUID());

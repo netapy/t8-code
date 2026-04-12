@@ -337,8 +337,8 @@ describe("importCodexConversations", () => {
     const orchestrationEngine = new FakeOrchestrationEngine();
 
     orchestrationEngine.seedThread({
-      id: ThreadId.makeUnsafe("codex-import:thread:codex-thread-match"),
-      projectId: ProjectId.makeUnsafe("project-1"),
+      id: ThreadId.make("codex-import:thread:codex-thread-match"),
+      projectId: ProjectId.make("project-1"),
       title: "Imported thread",
       modelSelection: { provider: "codex", model: "gpt-5-codex" },
       runtimeMode: "full-access",
@@ -381,8 +381,8 @@ describe("importCodexConversations", () => {
     await Effect.runPromise(
       orchestrationEngine.dispatch({
         type: "project.create",
-        commandId: CommandId.makeUnsafe("test-project-create"),
-        projectId: ProjectId.makeUnsafe("project-back-office"),
+        commandId: CommandId.make("test-project-create"),
+        projectId: ProjectId.make("project-back-office"),
         title: "back-office",
         workspaceRoot: "/workspace/back-office",
         defaultModelSelection: { provider: "codex", model: "gpt-5-codex" },

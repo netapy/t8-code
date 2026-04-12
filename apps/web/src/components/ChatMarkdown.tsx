@@ -15,6 +15,7 @@ import React, {
 } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
+import { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { openInPreferredEditor } from "../editorPreferences";
 import { resolveDiffThemeName, type DiffThemeName } from "../lib/diffRendering";
@@ -22,8 +23,8 @@ import { fnv1a32 } from "../lib/diffRendering";
 import { LRUCache } from "../lib/lruCache";
 import { copyTextToClipboard } from "../lib/utils";
 import { useTheme } from "../hooks/useTheme";
-import { resolveMarkdownFileLinkTarget } from "../markdown-links";
-import { readNativeApi } from "../nativeApi";
+import { resolveMarkdownFileLinkTarget, rewriteMarkdownFileUriHref } from "../markdown-links";
+import { readLocalApi } from "../localApi";
 
 class CodeHighlightErrorBoundary extends React.Component<
   { fallback: ReactNode; children: ReactNode },
@@ -161,7 +162,7 @@ function MarkdownCodeBlock({ code, children }: { code: string; children: ReactNo
   );
 
   return (
-    <div className="chat-markdown-codeblock">
+    <div className="chat-markdown-codeblock leading-snug">
       <button
         type="button"
         className="chat-markdown-copy-button"
@@ -235,6 +236,9 @@ function SuspenseShikiCodeBlock({
 function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
   const { resolvedTheme } = useTheme();
   const diffThemeName = resolveDiffThemeName(resolvedTheme);
+  const markdownUrlTransform = useCallback((href: string) => {
+    return rewriteMarkdownFileUriHref(href) ?? defaultUrlTransform(href);
+  }, []);
   const markdownComponents = useMemo<Components>(
     () => ({
       a({ node: _node, href, ...props }) {
@@ -250,7 +254,7 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
-              const api = readNativeApi();
+              const api = readLocalApi();
               if (api) {
                 void openInPreferredEditor(api, targetPath);
               } else {
@@ -287,7 +291,11 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
 
   return (
     <div className="chat-markdown w-full min-w-0 text-sm leading-relaxed text-foreground/80">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={markdownComponents}
+        urlTransform={markdownUrlTransform}
+      >
         {text}
       </ReactMarkdown>
     </div>

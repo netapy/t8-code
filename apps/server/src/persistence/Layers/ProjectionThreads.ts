@@ -11,7 +11,11 @@ import {
   ProjectionThreadRepository,
   type ProjectionThreadRepositoryShape,
 } from "../Services/ProjectionThreads.ts";
-import { ModelSelection, OrchestrationThreadContextUsage, OrchestrationQueuedFollowUp } from "@t3tools/contracts";
+import {
+  ModelSelection,
+  OrchestrationThreadContextUsage,
+  OrchestrationQueuedFollowUp,
+} from "@t3tools/contracts";
 
 const ProjectionThreadDbRow = ProjectionThread.mapFields(
   Struct.assign({
